@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from .analyzer import Analyzer
-from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary
+from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report
 
 def main():
     # Parse CLI arguments
@@ -38,6 +38,12 @@ def main():
     parser.add_argument('--summary', action='store_true', help='Generate a markdown project summary (print or --output)')
     parser.add_argument('--typestats', action='store_true', help='Show function parameter/type annotation statistics (Python)')
     parser.add_argument('--security', action='store_true', help='Scan for common insecure patterns and secrets')
+    parser.add_argument('--csv', action='store_true', help='Export summary statistics as CSV')
+    parser.add_argument('--details-csv', action='store_true', help='Export per-file details as CSV')
+    parser.add_argument('--groupdir-csv', action='store_true', help='Export grouped-by-directory stats as CSV')
+    parser.add_argument('--groupext-csv', action='store_true', help='Export grouped-by-extension stats as CSV')
+    parser.add_argument('--version', action='store_true', help='Show codestate version and exit')
+    parser.add_argument('--list-extensions', action='store_true', help='List all file extensions found in the project')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -51,6 +57,20 @@ def main():
         item = {'ext': ext}
         item.update(info)
         data.append(item)
+
+    if args.version:
+        print('codestate version 0.1.7')
+        sys.exit(0)
+    if args.list_extensions:
+        # Scan all files and print unique extensions
+        exts = set()
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                exts.add(file_path.suffix)
+        print('File extensions found in project:')
+        for ext in sorted(exts):
+            print(ext)
+        sys.exit(0)
 
     if args.tree:
         print('Project structure:')
@@ -90,8 +110,12 @@ def main():
             ascii_pie_chart(data, value_key='file_count', label_key='ext', title='Language Distribution (by file count)')
         if args.details:
             print("\nFile Details:")
-            for file_stat in analyzer.get_file_details():
-                print(file_stat)
+            file_details = analyzer.get_file_details()
+            if file_details:
+                headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+                print_table(file_details, headers=headers, title=None)
+            else:
+                print("No file details available.")
         if args.dup:
             dups = analyzer.get_duplicates()
             print(f"\nDuplicate code blocks (block size >= 5 lines, found {len(dups)} groups):")
@@ -202,13 +226,71 @@ def main():
     if args.groupdir:
         grouped = analyzer.get_grouped_stats(by='dir')
         print('\nGrouped statistics by top-level directory:')
+        rows = []
         for d, stats in grouped.items():
-            print(f'{d}: {stats}')
+            row = {'dir': d}
+            row.update(stats)
+            rows.append(row)
+        print_table(rows, headers=["dir", "file_count", "total_lines", "comment_lines", "function_count"])
     if args.groupext:
         grouped = analyzer.get_grouped_stats(by='ext')
         print('\nGrouped statistics by file extension:')
+        rows = []
         for ext, stats in grouped.items():
-            print(f'{ext}: {stats}')
+            row = {'ext': ext}
+            row.update(stats)
+            rows.append(row)
+        print_table(rows, headers=["ext", "file_count", "total_lines", "comment_lines", "function_count"])
+
+    if args.csv:
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8', newline='') as f:
+                f.write(csv_report(data))
+            print(f'CSV report written to {abs_path}')
+        else:
+            print(csv_report(data))
+    if args.details_csv:
+        file_details = analyzer.get_file_details()
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        csv_str = csv_report(file_details, headers=headers)
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8', newline='') as f:
+                f.write(csv_str)
+            print(f'Details CSV written to {abs_path}')
+        else:
+            print(csv_str)
+    if args.groupdir_csv:
+        grouped = analyzer.get_grouped_stats(by='dir')
+        rows = []
+        for d, stats in grouped.items():
+            row = {'dir': d}
+            row.update(stats)
+            rows.append(row)
+        csv_str = csv_report(rows, headers=["dir", "file_count", "total_lines", "comment_lines", "function_count"])
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8', newline='') as f:
+                f.write(csv_str)
+            print(f'Grouped-by-directory CSV written to {abs_path}')
+        else:
+            print(csv_str)
+    if args.groupext_csv:
+        grouped = analyzer.get_grouped_stats(by='ext')
+        rows = []
+        for ext, stats in grouped.items():
+            row = {'ext': ext}
+            row.update(stats)
+            rows.append(row)
+        csv_str = csv_report(rows, headers=["ext", "file_count", "total_lines", "comment_lines", "function_count"])
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8', newline='') as f:
+                f.write(csv_str)
+            print(f'Grouped-by-extension CSV written to {abs_path}')
+        else:
+            print(csv_str)
 
     if args.ci:
         # Criteria: health score < 80, or any naming violations, large files/functions, or dead code
@@ -258,6 +340,8 @@ def main():
             print('\nSecurity issues detected:')
             for i in issues:
                 print(f"{i['file']} (line {i['line']}): {i['desc']}\n    {i['content']}")
+                if 'note' in i:
+                    print(f"    Note: {i['note']}")
 
 if __name__ == "__main__":
     main() 

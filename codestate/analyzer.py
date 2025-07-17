@@ -33,14 +33,40 @@ class Analyzer:
         self.duplicates = []  # List of duplicate code info
 
     def analyze(self, regex_rules=None):
-        # Recursively scan files and collect statistics (multithreaded)
+        # Recursively scan files and collect statistics (multithreaded, thread-safe aggregation)
         if self.file_types is None:
-            # Auto-detect: include all files with an extension
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
         else:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
+        def analyze_file_safe(file_path):
+            try:
+                return self._analyze_file_threadsafe(file_path)
+            except Exception as e:
+                print(f"Error analyzing {file_path}: {e}")
+                return None
+        results = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            list(executor.map(self._analyze_file, files))
+            for res in executor.map(analyze_file_safe, files):
+                if res:
+                    results.append(res)
+        # Aggregate results
+        self.stats = defaultdict(lambda: {
+            'file_count': 0,
+            'total_lines': 0,
+            'comment_lines': 0,
+            'function_count': 0,
+            'complexity': 0,
+            'todo_count': 0,
+            'blank_lines': 0,
+            'comment_only_lines': 0,
+            'code_lines': 0
+        })
+        self.file_details = []
+        for stat, file_stat in results:
+            ext = file_stat['ext']
+            for k in stat:
+                self.stats[ext][k] += stat[k]
+            self.file_details.append(file_stat)
         # Calculate comment density and average complexity
         for ext, data in self.stats.items():
             if data['file_count'] > 0:
@@ -68,6 +94,66 @@ class Analyzer:
             self.max_file = self.min_file = None
         return self.stats
 
+    def _analyze_file_threadsafe(self, file_path):
+        # Returns (stat_dict, file_stat) for aggregation
+        ext = file_path.suffix
+        total_lines = 0
+        comment_lines = 0
+        function_count = 0
+        complexity = 0
+        todo_count = 0
+        blank_lines = 0
+        comment_only_lines = 0
+        code_lines = 0
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    total_lines += 1
+                    line_strip = line.strip()
+                    if not line_strip:
+                        blank_lines += 1
+                        continue
+                    is_comment = line_strip.startswith('#') or line_strip.startswith('//') or line_strip.startswith('/*') or line_strip.startswith('*')
+                    if is_comment:
+                        comment_lines += 1
+                        if len(line_strip) == len(line):
+                            comment_only_lines += 1
+                    if 'TODO' in line_strip or 'FIXME' in line_strip:
+                        todo_count += 1
+                    if re.match(r'^(def |function |void |int |float |double |public |private |static |func )', line_strip):
+                        function_count += 1
+                        complexity += self._estimate_complexity(line_strip)
+                    if not is_comment:
+                        code_lines += 1
+        except Exception as e:
+            print(f"File read error in {file_path}: {e}")
+        stat = {
+            'file_count': 1,
+            'total_lines': total_lines,
+            'comment_lines': comment_lines,
+            'function_count': function_count,
+            'complexity': complexity,
+            'todo_count': todo_count,
+            'blank_lines': blank_lines,
+            'comment_only_lines': comment_only_lines,
+            'code_lines': code_lines
+        }
+        function_avg_length = (total_lines / function_count) if function_count else 0
+        file_stat = {
+            'path': str(file_path),
+            'ext': ext,
+            'total_lines': total_lines,
+            'comment_lines': comment_lines,
+            'function_count': function_count,
+            'complexity': complexity,
+            'function_avg_length': function_avg_length,
+            'todo_count': todo_count,
+            'blank_lines': blank_lines,
+            'comment_only_lines': comment_only_lines,
+            'code_lines': code_lines
+        }
+        return stat, file_stat
+
     def _scan_security_issues(self):
         # Scan for common insecure patterns
         import re
@@ -91,7 +177,7 @@ class Analyzer:
                     for lineno, line in enumerate(f, 1):
                         for pat, desc in patterns:
                             if re.search(pat, line, re.IGNORECASE):
-                                issues.append({'file': path, 'line': lineno, 'desc': desc, 'content': line.strip()})
+                                issues.append({'file': path, 'line': lineno, 'desc': desc, 'content': line.strip(), 'note': 'Potentially false positive: regex match may include comments or strings.'})
             except Exception:
                 continue
         self.security_issues = issues
@@ -249,7 +335,8 @@ class Analyzer:
                                     'line': start,
                                     'threshold': threshold_func
                                 })
-                except Exception:
+                except Exception as e:
+                    print(f"AST parse error in {path}: {e}")
                     continue
 
     def get_large_warnings(self, threshold_file=300, threshold_func=50):
@@ -276,7 +363,8 @@ class Analyzer:
                             'line': node.lineno,
                             'docstring': doc or ''
                         })
-            except Exception:
+            except Exception as e:
+                print(f"AST parse error in {path}: {e}")
                 continue
 
     def get_api_doc_summaries(self):
@@ -323,7 +411,8 @@ class Analyzer:
                     last_author = authors[0]
                 else:
                     main_author = last_author = None
-            except Exception:
+            except Exception as e:
+                print(f"Git log error in {path}: {e}")
                 main_author = last_author = None
             self.git_authors[path] = {'main_author': main_author, 'last_author': last_author}
 
@@ -348,7 +437,8 @@ class Analyzer:
                     if isinstance(node, ast.ClassDef):
                         if not self._is_pascal_case(node.name):
                             self.naming_violations.append({'type': 'class', 'name': node.name, 'file': path, 'line': node.lineno, 'rule': 'PascalCase'})
-            except Exception:
+            except Exception as e:
+                print(f"AST parse error in {path}: {e}")
                 continue
 
     def _is_snake_case(self, name):
@@ -412,7 +502,8 @@ class Analyzer:
                             used.add(node.func.attr)
                     if isinstance(node, ast.Attribute):
                         used.add(node.attr)
-            except Exception:
+            except Exception as e:
+                print(f"AST parse error in {path}: {e}")
                 continue
         self.unused_defs = [
             {'name': name, 'file': file, 'line': line, 'type': typ}
@@ -440,13 +531,20 @@ class Analyzer:
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
                         total_funcs += 1
-                        for arg in node.args.args:
+                        # Support posonlyargs, args, kwonlyargs
+                        all_args = []
+                        if hasattr(node.args, 'posonlyargs'):
+                            all_args.extend(node.args.posonlyargs)
+                        all_args.extend(node.args.args)
+                        all_args.extend(node.args.kwonlyargs)
+                        for arg in all_args:
                             total_params += 1
                             if arg.annotation is not None:
                                 total_annotated_params += 1
                         if node.returns is not None:
                             total_annotated_returns += 1
-            except Exception:
+            except Exception as e:
+                print(f"AST parse error in {path}: {e}")
                 continue
         self.api_param_type_stats = {
             'total_functions': total_funcs,
@@ -468,68 +566,6 @@ class Analyzer:
             dirnames[:] = [d for d in dirnames if d not in self.exclude_dirs]
             for filename in filenames:
                 yield pathlib.Path(dirpath) / filename
-
-    def _analyze_file(self, file_path):
-        # Analyze a single file for statistics
-        ext = file_path.suffix
-        total_lines = 0
-        comment_lines = 0
-        function_count = 0
-        complexity = 0
-        todo_count = 0
-        blank_lines = 0
-        comment_only_lines = 0
-        code_lines = 0
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                for line in f:
-                    total_lines += 1
-                    line_strip = line.strip()
-                    if not line_strip:
-                        blank_lines += 1
-                        continue
-                    # Simple comment detection (supports //, #, /*, *)
-                    is_comment = line_strip.startswith('#') or line_strip.startswith('//') or line_strip.startswith('/*') or line_strip.startswith('*')
-                    if is_comment:
-                        comment_lines += 1
-                        if len(line_strip) == len(line):
-                            comment_only_lines += 1
-                    # TODO/FIXME detection
-                    if 'TODO' in line_strip or 'FIXME' in line_strip:
-                        todo_count += 1
-                    # Simple function detection (Python, JS, Java, C-like)
-                    if re.match(r'^(def |function |void |int |float |double |public |private |static |func )', line_strip):
-                        function_count += 1
-                        complexity += self._estimate_complexity(line_strip)
-                    # Count code lines (not blank, not only comment)
-                    if not is_comment:
-                        code_lines += 1
-        except Exception as e:
-            pass  # Ignore unreadable files
-        self.stats[ext]['file_count'] += 1
-        self.stats[ext]['total_lines'] += total_lines
-        self.stats[ext]['comment_lines'] += comment_lines
-        self.stats[ext]['function_count'] += function_count
-        self.stats[ext]['complexity'] += complexity
-        self.stats[ext]['todo_count'] += todo_count
-        self.stats[ext]['blank_lines'] += blank_lines
-        self.stats[ext]['comment_only_lines'] += comment_only_lines
-        self.stats[ext]['code_lines'] += code_lines
-        function_avg_length = (total_lines / function_count) if function_count else 0
-        file_stat = {
-            'path': str(file_path),
-            'ext': ext,
-            'total_lines': total_lines,
-            'comment_lines': comment_lines,
-            'function_count': function_count,
-            'complexity': complexity,
-            'function_avg_length': function_avg_length,
-            'todo_count': todo_count,
-            'blank_lines': blank_lines,
-            'comment_only_lines': comment_only_lines,
-            'code_lines': code_lines
-        }
-        self.file_details.append(file_stat)
 
     def _estimate_complexity(self, line):
         # Simple cyclomatic complexity estimation: count keywords

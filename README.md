@@ -27,64 +27,42 @@ codestate [directory] [options]
 ```
 
 ### Options
-- `directory`         Target directory to analyze (default: current directory)
-- `--exclude`         Directories to exclude (space separated, e.g. --exclude .git venv node_modules)
-- `--ext`             File extensions to include (e.g. --ext .py .js)
-- `--json`            Export result as JSON
-- `--html`            Export result as HTML table
-- `--md`              Export result as Markdown table
-- `--details`         Show detailed statistics for each file
-- `--dup`             Show duplicate code blocks (5+ lines)
-- `--maxmin`          Show file with most/least lines
-- `--authors`         Show git main author and last modifier for each file
-- `--langdist`        Show language (file extension) distribution as ASCII pie chart
-- `--naming`          Check function/class naming conventions (PEP8, PascalCase)
-- `--tree`            Show ASCII tree view of project structure
-- `--apidoc`          Show API/function/class docstring summaries
-- `--warnsize`        Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)
-- `--regex`           User-defined regex rules for custom code checks (space separated, enclose in quotes)
-- `--output`, `-o`      Output file for HTML/Markdown/JSON export
-- `--hotspot`          Show most frequently changed files (git hotspots)
-- `--health`           Show project health score and suggestions
-- `--groupdir`         Show grouped statistics by top-level directory
-- `--groupext`         Show grouped statistics by file extension
-- `--complexitymap`    Show ASCII heatmap of file complexity
-- `--deadcode`         Show unused (dead) functions/classes in Python files
-- `--ci`               CI/CD mode: exit non-zero if major issues found
-- `--summary`          Generate a markdown project summary (print or --output)
-- `--typestats`        Show function parameter/type annotation statistics (Python)
-- `--security`         Scan for common insecure patterns and secrets
 
-## Features
-- Count lines of code per file type
-- Analyze function/method complexity
-- Calculate comment density
-- Show average function length
-- Detect and count TODO/FIXME comments
-- Exclude specific directories from analysis
-- Multithreaded for fast analysis of large projects
-- Visualize results as ASCII bar charts in the terminal
-- Export results as JSON, HTML, or Markdown tables (with optional file output via `--output`)
-- Show per-file detailed statistics with `--details`
-- Detect duplicate code blocks across files (`--dup`)
-- Show file with most/least lines (`--maxmin`)
-- Show git main author and last modifier for each file (`--authors`)
-- Show language distribution as ASCII pie chart (`--langdist`)
-- Check function/class naming conventions (`--naming`)
-- Show ASCII tree view of project structure (`--tree`)
-- Extract API/function/class docstring summaries (`--apidoc`)
-- Warn for large files/functions (`--warnsize`)
-- User-defined regex rules for custom code checks (`--regex`)
-- Show most frequently changed files (git hotspots) (`--hotspot`)
-- Show project health score and suggestions (`--health`)
-- Show grouped statistics by top-level directory (`--groupdir`)
-- Show grouped statistics by file extension (`--groupext`)
-- Show ASCII heatmap of file complexity (`--complexitymap`)
-- Show unused (dead) functions/classes in Python files (`--deadcode`)
-- CI/CD mode: exit non-zero if major issues found (`--ci`)
-- Generate a markdown project summary (`--summary`)
-- Show function parameter/type annotation statistics (`--typestats`)
-- Scan for common insecure patterns and secrets (`--security`)
+| Option                | Description |
+|-----------------------|-------------|
+| `directory`           | Target directory to analyze (default: current directory) |
+| `--exclude`           | Directories to exclude (space separated, e.g. --exclude .git venv node_modules) |
+| `--ext`               | File extensions to include (e.g. --ext .py .js) |
+| `--json`              | Export result as JSON |
+| `--html`              | Export result as HTML table |
+| `--md`                | Export result as Markdown table |
+| `--details`           | Show detailed statistics for each file |
+| `--dup`               | Show duplicate code blocks (5+ lines) |
+| `--maxmin`            | Show file with most/least lines |
+| `--authors`           | Show git main author and last modifier for each file |
+| `--langdist`          | Show language (file extension) distribution as ASCII pie chart |
+| `--naming`            | Check function/class naming conventions (PEP8, PascalCase) |
+| `--tree`              | Show ASCII tree view of project structure |
+| `--apidoc`            | Show API/function/class docstring summaries |
+| `--warnsize`          | Warn for large files/functions (optionally specify file and function line thresholds, default 300/50) |
+| `--regex`             | User-defined regex rules for custom code checks (space separated, enclose in quotes) |
+| `--output`, `-o`      | Output file for HTML/Markdown/JSON/CSV/Markdown export |
+| `--hotspot`           | Show most frequently changed files (git hotspots) |
+| `--health`            | Show project health score and suggestions |
+| `--groupdir`          | Show grouped statistics by top-level directory |
+| `--groupext`          | Show grouped statistics by file extension |
+| `--complexitymap`     | Show ASCII heatmap of file complexity |
+| `--deadcode`          | Show unused (dead) functions/classes in Python files |
+| `--ci`                | CI/CD mode: exit non-zero if major issues found |
+| `--summary`           | Generate a markdown project summary (print or --output) |
+| `--typestats`         | Show function parameter/type annotation statistics (Python) |
+| `--security`          | Scan for common insecure patterns and secrets |
+| `--csv`               | Export summary statistics as CSV |
+| `--details-csv`       | Export per-file details as CSV |
+| `--groupdir-csv`      | Export grouped-by-directory stats as CSV |
+| `--groupext-csv`      | Export grouped-by-extension stats as CSV |
+| `--version`           | Show codestate version and exit |
+| `--list-extensions`   | List all file extensions found in the project |
 
 ## Examples
 

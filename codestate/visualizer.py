@@ -3,6 +3,8 @@ Visualizer module for ASCII chart output.
 """
 
 import os
+import csv
+import io
 
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
@@ -163,4 +165,41 @@ def generate_markdown_summary(stats, health_report, hotspots=None):
         lines.append('|------|---------|')
         for path, count in hotspots:
             lines.append(f"| {path} | {count} |")
-    return '\n'.join(lines) 
+    return '\n'.join(lines)
+
+def print_table(rows, headers=None, title=None):
+    """
+    Print a list of dicts as a pretty aligned table.
+    """
+    if not rows:
+        print("No data to display.")
+        return
+    if headers is None:
+        headers = list(rows[0].keys())
+    col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in rows)) for h in headers]
+    if title:
+        print(f"\n{title}")
+    # Print header
+    header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
+    print(header_line)
+    print('-+-'.join('-'*w for w in col_widths))
+    # Print rows
+    for row in rows:
+        print(' | '.join(str(row.get(h, '')).ljust(w) for h, w in zip(headers, col_widths)))
+
+def csv_report(data, headers=None):
+    """
+    Export statistics as a CSV string.
+    data: list of dicts
+    headers: optional list of column names
+    """
+    if not data:
+        return ''
+    if headers is None:
+        headers = list(data[0].keys())
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    for row in data:
+        writer.writerow({h: row.get(h, '') for h in headers})
+    return output.getvalue() 
