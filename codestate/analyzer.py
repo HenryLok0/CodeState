@@ -303,12 +303,12 @@ class Analyzer:
         from collections import Counter
         try:
             cmd = ['git', '-C', str(self.root_dir), 'log', '--name-only', '--pretty=format:']
-            output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+            output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
             files = [line.strip() for line in output.splitlines() if line.strip()]
             counter = Counter(files)
             self.git_hotspots = counter.most_common()
         except Exception:
-            self.git_hotspots = None
+            self.git_hotspots = None  # Suppress all git errors
 
     def get_git_hotspots(self, top_n=10):
         # Return list of (file, commit_count) for the most frequently changed files
@@ -414,15 +414,14 @@ class Analyzer:
             try:
                 # Get main author (most commits)
                 cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%an', rel_path]
-                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore').splitlines()
+                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL).splitlines()
                 if authors:
                     main_author = max(set(authors), key=authors.count)
                     last_author = authors[0]
                 else:
                     main_author = last_author = None
-            except Exception as e:
-                print(f"Git log error in {path}: {e}")
-                main_author = last_author = None
+            except Exception:
+                main_author = last_author = None  # Suppress all git errors
             self.git_authors[path] = {'main_author': main_author, 'last_author': last_author}
 
     def get_git_authors(self):
@@ -581,7 +580,7 @@ class Analyzer:
             try:
                 # Get commit hashes and dates for this file
                 cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%H|%ad', '--date=short', '--', rel_path]
-                output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+                output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
                 commits = [line.strip().split('|') for line in output.splitlines() if line.strip()]
                 # Limit to latest max_points commits
                 commits = commits[:max_points]
@@ -590,14 +589,14 @@ class Analyzer:
                     # Get file content at this commit
                     show_cmd = ['git', '-C', str(self.root_dir), 'show', f'{commit_hash}:{rel_path}']
                     try:
-                        content = subprocess.check_output(show_cmd, encoding='utf-8', errors='ignore')
+                        content = subprocess.check_output(show_cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
                         line_count = len(content.splitlines())
                     except Exception:
-                        line_count = None
+                        line_count = None  # Suppress all git errors
                     trend.append({'commit': commit_hash, 'date': date, 'lines': line_count})
                 self.file_trends[path] = trend
             except Exception:
-                continue
+                continue  # Suppress all git errors
 
     def get_file_trend(self, file, max_points=20):
         # Return line count trend for a file (list of dicts: commit, date, lines)
@@ -731,20 +730,20 @@ class Analyzer:
             try:
                 # Get all authors for this file
                 cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%an', rel_path]
-                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore').splitlines()
+                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL).splitlines()
                 for a in set(authors):
                     author_files[a].add(path)
                 for a in authors:
                     author_commits[a] += 1
                 # Use git blame to count lines per author
                 blame_cmd = ['git', '-C', str(self.root_dir), 'blame', '--line-porcelain', rel_path]
-                blame_out = subprocess.check_output(blame_cmd, encoding='utf-8', errors='ignore')
+                blame_out = subprocess.check_output(blame_cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
                 for line in blame_out.splitlines():
                     if line.startswith('author '):
                         author = line[7:]
                         author_lines[author] += 1
             except Exception:
-                continue
+                continue  # Suppress all git errors
         stats = []
         for author in set(list(author_files.keys()) + list(author_lines.keys()) + list(author_commits.keys())):
             stats.append({
