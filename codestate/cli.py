@@ -210,6 +210,7 @@ def main():
             print('No contributor statistics found (not a git repo or no data).')
         else:
             print('Contributor Statistics:')
+            from .visualizer import print_table
             print_table(stats, headers=["author", "file_count", "line_count", "commit_count"], title=None)
         return
 
