@@ -52,6 +52,7 @@ def main():
     parser.add_argument('--style-check', action='store_true', help='Check code style: indentation, line length, trailing whitespace, EOF newline')
     parser.add_argument('--multi', nargs='+', help='Analyze multiple root directories (monorepo support)')
     parser.add_argument('--contributors', action='store_true', help='Show contributor statistics (file count, line count, commit count per author)')
+    parser.add_argument('--contributors-detail', action='store_true', help='Show detailed contributor statistics (all available fields)')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -210,6 +211,50 @@ def main():
         else:
             print('Contributor Statistics:')
             print_table(stats, headers=["author", "file_count", "line_count", "commit_count"], title=None)
+        return
+
+    if args.contributors_detail:
+        stats = analyzer.get_contributor_stats()
+        if not stats:
+            print('No contributor statistics found (not a git repo or no data).')
+        else:
+            print('Contributor Detailed Statistics:')
+            # Dynamically get all keys for headers
+            all_keys = set()
+            for s in stats:
+                all_keys.update(s.keys())
+            headers = list(all_keys)
+            # Sort common fields first
+            preferred = ['author','file_count','line_count','commit_count','workload_percent','first_commit','last_commit','avg_lines_per_commit','main_exts','max_file_lines','active_days_last_30','added_lines','deleted_lines']
+            headers = preferred + [k for k in headers if k not in preferred]
+            # Calculate weighted workload_percent using custom weights
+            weights = {
+                'line_count': 0.25,
+                'commit_count': 0.20,
+                'added_lines': 0.25,
+                'deleted_lines': 0.15,
+                'active_days_last_30': 0.05,
+                'max_file_lines': 0.10
+            }
+            numeric_fields = list(weights.keys())
+            for s in stats:
+                score = 0
+                for f in numeric_fields:
+                    try:
+                        score += float(s.get(f,0)) * weights[f]
+                    except Exception:
+                        pass
+                s['_detail_workload_score'] = score
+            total_score = sum(s['_detail_workload_score'] for s in stats)
+            for s in stats:
+                if total_score > 0:
+                    s['workload_percent'] = f"{(s['_detail_workload_score']/total_score*100):.1f}%"
+                else:
+                    s['workload_percent'] = '0.0%'
+            # Sort by detail workload score
+            stats = sorted(stats, key=lambda s: s['_detail_workload_score'], reverse=True)
+            from .visualizer import print_table
+            print_table(stats, headers=headers, title=None)
         return
 
     if args.security:

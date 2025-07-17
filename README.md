@@ -71,6 +71,7 @@ codestate [directory] [options]
 | `--style-check`       | Check code style: indentation, line length, trailing whitespace, EOF newline |
 | `--multi`             | Analyze multiple root directories (monorepo support) |
 | `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
+| `--contributors-detail`      | Show detail contributor statistics |
 
 ## Examples
 
