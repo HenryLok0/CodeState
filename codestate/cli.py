@@ -68,7 +68,7 @@ def main():
             print(f'Analyzing {d} ...')
             analyzer = Analyzer(d, file_types=args.ext, exclude_dirs=args.exclude)
             # Show progress bar when analyzing files
-            stats = analyzer.analyze(regex_rules=regex_rules, show_progress=True)
+            stats = analyzer.analyze(regex_rules=regex_rules)
             all_results[d] = stats
             data = []
             for ext, info in stats.items():
@@ -87,35 +87,15 @@ def main():
         return
 
     analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
-    # 預先取得所有檔案數量
-    if analyzer.file_types is None:
-        files = [file_path for file_path in analyzer._iter_files(analyzer.root_dir) if file_path.suffix]
-    else:
-        files = [file_path for file_path in analyzer._iter_files(analyzer.root_dir) if file_path.suffix in analyzer.file_types]
-    output_steps = 0
-    if args.tree:
-        output_steps += 1
-    if args.badges:
-        output_steps += 1
-    # 你可以根據其他 CLI 參數再加 output_steps
-    total_steps = len(files) + output_steps
-    from tqdm import tqdm
-    pbar = tqdm(total=total_steps, desc="Progress")
-    def file_callback(_):
-        pbar.update(1)
-    stats = analyzer.analyze(regex_rules=regex_rules, file_callback=file_callback)
+    stats = analyzer.analyze(regex_rules=regex_rules)
     # 檔案分析完畢，進行輸出步驟
     if args.tree:
-        print('Project structure:', flush=True)
+        print('Project structure:')
         print_ascii_tree(args.directory)
-        pbar.update(1)
     if args.badges:
         # ... badges 輸出 ...
-        # 假設有 badges 輸出函式
-        # print_badges(...)
-        pbar.update(1)
-    # 其他輸出步驟同理，確保 update(1) 在輸出完成後
-    pbar.close()
+        pass
+    # 其他輸出步驟同理
 
     # Prepare data for visualization
     data = []
