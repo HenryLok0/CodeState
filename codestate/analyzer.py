@@ -16,7 +16,9 @@ class Analyzer:
         # file_types: list of file extensions to include (e.g., ['.py', '.js'])
         # exclude_dirs: list of directory names to exclude
         self.root_dir = pathlib.Path(root_dir)
-        self.file_types = file_types  # None means auto-detect all extensions
+        self.file_types = file_types or [
+            '.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rb', '.php', '.cs', '.sh'
+        ]
         self.exclude_dirs = set(exclude_dirs or ['.git', 'venv', 'node_modules'])
         self.stats = defaultdict(lambda: {
             'file_count': 0,
@@ -34,11 +36,7 @@ class Analyzer:
 
     def analyze(self, regex_rules=None):
         # Recursively scan files and collect statistics (multithreaded)
-        if self.file_types is None:
-            # Auto-detect: include all files with an extension
-            files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
-        else:
-            files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
+        files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
         with concurrent.futures.ThreadPoolExecutor() as executor:
             list(executor.map(self._analyze_file, files))
         # Calculate comment density and average complexity
