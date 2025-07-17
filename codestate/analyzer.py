@@ -11,6 +11,11 @@ try:
     import pathspec
 except ImportError:
     pathspec = None
+# 新增 tqdm 匯入
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 
 class Analyzer:
     """
@@ -47,7 +52,7 @@ class Analyzer:
         elif not pathspec and gitignore_path.exists():
             print("[codestate] Warning: pathspec not installed, .gitignore will be ignored. Run 'pip install pathspec' for better results.")
 
-    def analyze(self, regex_rules=None):
+    def analyze(self, regex_rules=None, show_progress=False):
         # Recursively scan files and collect statistics (multithreaded, thread-safe aggregation)
         if self.file_types is None:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
@@ -60,8 +65,12 @@ class Analyzer:
                 print(f"Error analyzing {file_path}: {e}")
                 return None
         results = []
+        # Show progress bar when analyzing files (only if tqdm is available and show_progress is True)
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for res in executor.map(analyze_file_safe, files):
+            file_iter = executor.map(analyze_file_safe, files)
+            if show_progress and tqdm is not None:
+                file_iter = tqdm(file_iter, total=len(files), desc="Analyzing files")
+            for res in file_iter:
                 if res:
                     results.append(res)
         # Aggregate results

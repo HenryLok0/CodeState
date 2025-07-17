@@ -67,7 +67,8 @@ def main():
         for d in args.multi:
             print(f'Analyzing {d} ...')
             analyzer = Analyzer(d, file_types=args.ext, exclude_dirs=args.exclude)
-            stats = analyzer.analyze(regex_rules=regex_rules)
+            # Show progress bar when analyzing files
+            stats = analyzer.analyze(regex_rules=regex_rules, show_progress=True)
             all_results[d] = stats
             data = []
             for ext, info in stats.items():
@@ -86,7 +87,8 @@ def main():
         return
 
     analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
-    stats = analyzer.analyze(regex_rules=regex_rules)
+    # Show progress bar when analyzing files
+    stats = analyzer.analyze(regex_rules=regex_rules, show_progress=True)
 
     # Prepare data for visualization
     data = []
