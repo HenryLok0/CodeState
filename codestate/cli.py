@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--apidoc', action='store_true', help='Show API/function/class docstring summaries')
     parser.add_argument('--warnsize', nargs='*', type=int, help='Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)')
     parser.add_argument('--regex', nargs='+', help='User-defined regex rules for custom code checks (space separated, enclose in quotes)')
+    parser.add_argument('--output', '-o', type=str, help='Output file for HTML/Markdown/JSON export')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -45,11 +46,29 @@ def main():
         print_ascii_tree(args.directory)
 
     if args.html:
-        print(html_report(data, title='Code Statistics'))
+        result = html_report(data, title='Code Statistics')
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(result)
+            print(f'HTML report written to {args.output}')
+        else:
+            print(result)
     elif args.md:
-        print(markdown_report(data, title='Code Statistics'))
+        result = markdown_report(data, title='Code Statistics')
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(result)
+            print(f'Markdown report written to {args.output}')
+        else:
+            print(result)
     elif args.json:
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+        result = json.dumps(data, indent=2, ensure_ascii=False)
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(result)
+            print(f'JSON report written to {args.output}')
+        else:
+            print(result)
     else:
         ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
         print_comment_density(data, label_key='ext')

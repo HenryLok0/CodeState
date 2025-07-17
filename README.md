@@ -43,6 +43,7 @@ codestate [directory] [options]
 - `--apidoc`          Show API/function/class docstring summaries
 - `--warnsize`        Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)
 - `--regex`           User-defined regex rules for custom code checks (space separated, enclose in quotes)
+- `--output`, `-o`      Output file for HTML/Markdown/JSON export
 
 ## Features
 - Count lines of code per file type
@@ -53,7 +54,7 @@ codestate [directory] [options]
 - Exclude specific directories from analysis
 - Multithreaded for fast analysis of large projects
 - Visualize results as ASCII bar charts in the terminal
-- Export results as JSON, HTML, or Markdown tables
+- Export results as JSON, HTML, or Markdown tables (with optional file output via `--output`)
 - Show per-file detailed statistics with `--details`
 - Detect duplicate code blocks across files (`--dup`)
 - Show file with most/least lines (`--maxmin`)
@@ -147,6 +148,21 @@ User-defined regex rules for custom code checks:
 ```bash
 codestate --regex "TODO" "def [A-Z]"
 codestate --regex "password" "eval\("
+```
+
+Export results as HTML to a file:
+```bash
+codestate --html --output report.html
+```
+
+Export results as Markdown to a file:
+```bash
+codestate --md --output report.md
+```
+
+Export results as JSON to a file:
+```bash
+codestate --json --output result.json
 ```
 
 ## Contributing

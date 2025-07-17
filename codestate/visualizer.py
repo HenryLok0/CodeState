@@ -19,12 +19,14 @@ def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
         print("No data to display.")
         return
     max_value = max(item[value_key] for item in data)
+    total = sum(item[value_key] for item in data)
     for item in data:
         label = str(item[label_key]).ljust(8)
         value = item[value_key]
         bar_len = int((value / max_value) * width) if max_value else 0
         bar = '█' * bar_len
-        print(f"{label} | {bar} {value}")
+        percent = (value / total) * 100 if total else 0
+        print(f"{label} | {bar} {value} ({percent:.1f}%)")
 
 def print_comment_density(data, label_key='ext'):
     """
