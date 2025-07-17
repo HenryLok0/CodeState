@@ -807,8 +807,9 @@ class Analyzer:
                 for i, line in enumerate(lines):
                     if '\t' in line:
                         issues.append({'file': path, 'line': i+1, 'type': 'tab-indent', 'desc': 'Tab character in indentation'})
-                    if len(line.rstrip('\n\r')) > max_line_length:
-                        issues.append({'file': path, 'line': i+1, 'type': 'long-line', 'desc': f'Line exceeds {max_line_length} chars'})
+                    line_len = len(line.rstrip('\n\r'))
+                    if line_len > max_line_length:
+                        issues.append({'file': path, 'line': i+1, 'type': 'long-line', 'desc': f'Line exceeds {max_line_length} chars (actual: {line_len} chars)'})
                     if line.rstrip('\n\r') != line.rstrip():
                         issues.append({'file': path, 'line': i+1, 'type': 'trailing-whitespace', 'desc': 'Trailing whitespace'})
                 if lines and not lines[-1].endswith('\n'):
