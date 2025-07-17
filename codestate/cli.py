@@ -610,9 +610,33 @@ def main():
         gha_path = os.path.join(args.directory, '.github', 'workflows')
         if os.path.isdir(gha_path) and any(f.endswith('.yml') or f.endswith('.yaml') for f in os.listdir(gha_path)):
             ci = 'GitHub Actions'
+        # Detect GitHub repo for code size/stars badges
+        github_repo = None
+        git_config_path = os.path.join(args.directory, '.git', 'config')
+        if os.path.exists(git_config_path):
+            with open(git_config_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            url = None
+            for i, line in enumerate(lines):
+                if '[remote "origin"]' in line:
+                    for j in range(i+1, min(i+6, len(lines))):
+                        if 'url =' in lines[j]:
+                            url = lines[j].split('=',1)[1].strip()
+                            break
+                if url:
+                    break
+            if url:
+                # 支援 git@github.com:username/repo.git 或 https://github.com/username/repo.git
+                import re
+                m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
+                if m:
+                    github_repo = m.group(1)
         # Print badges
         print('\nRecommended README badges:')
         badge_md = []
+        if github_repo:
+            badge_md.append(f'[![Code Size](https://img.shields.io/github/languages/code-size/{github_repo}?style=flat-square&logo=github)](https://github.com/{github_repo})')
+            badge_md.append(f'[![Stars](https://img.shields.io/github/stars/{github_repo}?style=flat-square)](https://github.com/{github_repo}/stargazers)')
         if main_lang != 'Unknown':
             badge_md.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
         if framework:

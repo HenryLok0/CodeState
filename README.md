@@ -68,7 +68,7 @@ codestate [directory] [options]
 | `--contributors-detail`      | Show detail contributor statistics |
 | `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
 | `--badge-sustainability`      | Output SVG sustainability/health badge |
-| `--badge`      | Auto-detect and print project language/framework/license/CI badges for README |
+| `--badges`      | Auto-detect and print project language/framework/license/CI badges for README |
 
 
 ## Examples
