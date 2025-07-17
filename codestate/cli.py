@@ -535,8 +535,15 @@ def main():
             print_ascii_tree(args.directory)
         structure = buf.getvalue().strip()
         contributors = analyzer.get_contributor_stats()
-        hotspots = analyzer.get_git_hotspots()
-        health = analyzer.get_health_report()
+        # 確保 contributors 有 workload_percent 欄位，並依 detail_workload_score 排序
+        if contributors and ('workload_percent' not in contributors[0] or not contributors[0]['workload_percent']):
+            total_score = sum(c.get('detail_workload_score', 0) for c in contributors)
+            for c in contributors:
+                if total_score > 0:
+                    c['workload_percent'] = f"{(c.get('detail_workload_score', 0)/total_score*100):.1f}%"
+                else:
+                    c['workload_percent'] = '0.0%'
+            contributors.sort(key=lambda c: c.get('detail_workload_score', 0), reverse=True)
         # --- badge 偵測（同 --badges）---
         badges = []
         exts = set()
@@ -604,7 +611,15 @@ def main():
             stats, health, contributors, hotspots, structure,
             badges=badges, root_path=args.directory
         )
-        output_path = args.output or 'README.codestate.md'
+        # 決定輸出檔名：預設 README.md，若已存在則用 README.codestate.md
+        if args.output:
+            output_path = args.output
+        else:
+            default_readme = os.path.join(args.directory, 'README.md')
+            if os.path.exists(default_readme):
+                output_path = os.path.join(args.directory, 'README.codestate.md')
+            else:
+                output_path = default_readme
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(readme_md)
         print(f'Auto-generated README written to {output_path}')
