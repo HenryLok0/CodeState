@@ -66,8 +66,8 @@ codestate [directory] [options]
 | `--multi`             | Analyze multiple root directories (monorepo support) |
 | `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
 | `--contributors-detail`      | Show detail contributor statistics |
-| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) (__**require output file path**__) |
-| `--badge-sustainability`      | Output SVG sustainability/health badge (__**require output file path**__) |
+| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
+| `--badge-sustainability`      | Output SVG sustainability/health badge |
 
 ## Examples
 

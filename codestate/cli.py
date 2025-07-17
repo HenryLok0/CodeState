@@ -55,8 +55,8 @@ def main():
     parser.add_argument('--multi', nargs='+', help='Analyze multiple root directories (monorepo support)')
     parser.add_argument('--contributors', action='store_true', help='Show contributor statistics (file count, line count, commit count per author)')
     parser.add_argument('--contributors-detail', action='store_true', help='Show detailed contributor statistics (all available fields)')
-    parser.add_argument('--lang-card-svg', type=str, help='Output SVG language stats card (like GitHub top-langs)')
-    parser.add_argument('--badge-sustainability', type=str, help='Output SVG sustainability/health badge')
+    parser.add_argument('--lang-card-svg', nargs='?', const='codestate_langs.svg', type=str, help='Output SVG language stats card (like GitHub top-langs)')
+    parser.add_argument('--badge-sustainability', nargs='?', const='codestate_sustainability.svg', type=str, help='Output SVG sustainability/health badge')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -519,16 +519,18 @@ def main():
         for ext, info in stats.items():
             lang_data.append({'ext': ext, 'total_lines': info['total_lines']})
         # Generate SVG card
-        generate_lang_card_svg(lang_data, args.lang_card_svg)
-        print(f'Language stats SVG card written to {os.path.abspath(args.lang_card_svg)}')
+        output_path = args.lang_card_svg if isinstance(args.lang_card_svg, str) else 'codestate_langs.svg'
+        generate_lang_card_svg(lang_data, output_path)
+        print(f'Language stats SVG card written to {os.path.abspath(output_path)}')
         return
     # 可持續性/健康徽章 SVG
     if args.badge_sustainability:
         # Get health score from analyzer
         health = analyzer.get_health_report()
         score = health['score'] if health else 0
-        generate_sustainability_badge_svg(score, args.badge_sustainability)
-        print(f'Sustainability badge SVG written to {os.path.abspath(args.badge_sustainability)}')
+        output_path = args.badge_sustainability if isinstance(args.badge_sustainability, str) else 'codestate_sustainability.svg'
+        generate_sustainability_badge_svg(score, output_path)
+        print(f'Sustainability badge SVG written to {os.path.abspath(output_path)}')
         return
 
 if __name__ == "__main__":
