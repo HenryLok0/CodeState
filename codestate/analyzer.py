@@ -541,14 +541,46 @@ class Analyzer:
         defined = set()
         used = set()
         for file_stat in self.file_details:
+            # Exclude files in the build/lib directory
+            path_norm = file_stat['path'].replace('\\', '/').replace('\\', '/').lower()
+            if 'build/lib' in path_norm or '/tests/' in path_norm or '\\tests\\' in path_norm or '__pycache__' in path_norm or 'test' in os.path.basename(path_norm):
+                continue
             if file_stat['ext'] != '.py':
                 continue
             path = file_stat['path']
             try:
                 with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                    tree = ast.parse(f.read(), filename=path)
+                    source = f.read()
+                    tree = ast.parse(source, filename=path)
+                # Collect all function/class decorators
+                route_func_lines = set()
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef) or isinstance(node, ast.ClassDef):
+                    if isinstance(node, ast.FunctionDef) and node.decorator_list:
+                        for dec in node.decorator_list:
+                            # Detecting Flask route decorators
+                            if hasattr(dec, 'attr') and dec.attr in ['route', 'get', 'post', 'put', 'delete', 'patch']:
+                                route_func_lines.add(node.lineno)
+                for node in ast.walk(tree):
+                    # Exclude special methods, test functions, migrations, and Flask routes
+                    if isinstance(node, ast.FunctionDef):
+                        if node.name.startswith('test_'):
+                            continue
+                        if node.name in ['__init__', '__str__', '__repr__', '__main__', '__call__', '__enter__', '__exit__',
+                                         'setUp', 'tearDown', 'upgrade', 'downgrade', 'process_revision_directives']:
+                            continue
+                        if node.lineno in route_func_lines:
+                            continue
+                        defined.add((node.name, path, node.lineno, type(node).__name__))
+                    elif isinstance(node, ast.ClassDef):
+                        # Exclude common test/form/ORM categories
+                        skip_class = False
+                        for base in node.bases:
+                            if hasattr(base, 'id') and base.id in ['TestCase', 'Form', 'Model', 'Config', 'Base', 'object']:
+                                skip_class = True
+                        if node.name.startswith('Test') or node.name.endswith('Form') or node.name.endswith('Model') or node.name.endswith('Config'):
+                            skip_class = True
+                        if skip_class:
+                            continue
                         defined.add((node.name, path, node.lineno, type(node).__name__))
                     # Find all function/class usage (calls, instantiations)
                     if isinstance(node, ast.Call):
