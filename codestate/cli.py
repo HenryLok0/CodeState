@@ -58,6 +58,8 @@ def main():
     parser.add_argument('--lang-card-svg', nargs='?', const='codestate_langs.svg', type=str, help='Output SVG language stats card (like GitHub top-langs)')
     parser.add_argument('--badge-sustainability', nargs='?', const='codestate_sustainability.svg', type=str, help='Output SVG sustainability/health badge')
     parser.add_argument('--badges', action='store_true', help='Auto-detect and print project language/framework/license/CI badges for README')
+    parser.add_argument('--auto-readme', action='store_true', help='Auto-generate a README template based on analysis')
+    parser.add_argument('--autofix-suggest', action='store_true', help='Suggest auto-fix patches for naming, comments, and duplicate code')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -521,6 +523,30 @@ def main():
             print(f'Markdown project summary written to {abs_path}')
         else:
             print(summary_md)
+
+    if args.auto_readme:
+        # Collect analysis data and call generate_auto_readme
+        from .visualizer import generate_auto_readme, print_ascii_tree
+        # 專案結構（用 ASCII tree）
+        import io
+        buf = io.StringIO()
+        import contextlib
+        with contextlib.redirect_stdout(buf):
+            print_ascii_tree(args.directory)
+        structure = buf.getvalue().strip()
+        contributors = analyzer.get_contributor_stats()
+        hotspots = analyzer.get_git_hotspots()
+        health = analyzer.get_health_report()
+        readme_md = generate_auto_readme(stats, health, contributors, hotspots, structure)
+        output_path = args.output or 'README.codestate.md'
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(readme_md)
+        print(f'Auto-generated README written to {output_path}')
+        return
+    if args.autofix_suggest:
+        suggestions = analyzer.get_autofix_suggestions()
+        print('\n'.join(suggestions))
+        return
 
     # 語言統計 SVG 卡片
     if args.lang_card_svg:

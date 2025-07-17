@@ -1052,3 +1052,38 @@ class Analyzer:
     def get_file_details_with_size(self):
         # Return per-file statistics including file size
         return self.file_details 
+
+    def get_autofix_suggestions(self):
+        """
+        Provide auto-fix suggestions or patches for naming, comment, and duplicate code issues.
+        """
+        suggestions = []
+        # Naming convention suggestions
+        for v in self.get_naming_violations():
+            if v['type'] == 'function':
+                # Suggest convert to snake_case
+                import re
+                new_name = re.sub(r'([A-Z])', r'_\1', v['name']).lower().lstrip('_')
+                suggestions.append(f"[Naming] {v['file']} line {v['line']}: function '{v['name']}' → '{new_name}' (suggest snake_case)")
+                suggestions.append(f"patch: replace def {v['name']} → def {new_name}")
+            elif v['type'] == 'class':
+                # Suggest convert to PascalCase
+                import re
+                parts = re.split(r'_|-|\s', v['name'])
+                new_name = ''.join(p.capitalize() for p in parts if p)
+                suggestions.append(f"[Naming] {v['file']} line {v['line']}: class '{v['name']}' → '{new_name}' (suggest PascalCase)")
+                suggestions.append(f"patch: replace class {v['name']} → class {new_name}")
+        # Comment density suggestions
+        for f in self.file_details:
+            density = f.get('comment_lines', 0) / f['total_lines'] if f['total_lines'] else 0
+            if density < 0.05:
+                suggestions.append(f"[Comment] {f['path']}: Comment density too low ({density:.1%}), suggest adding docstrings or comments for each function/class.")
+        # Duplicate code suggestions
+        dups = self.get_duplicates()
+        if dups:
+            for group in dups:
+                files = set(path for path, _, _ in group)
+                suggestions.append(f"[Duplicate] Found {len(group)} duplicate code blocks in files: {', '.join(files)}. Suggest extracting as a shared function/module.")
+        if not suggestions:
+            suggestions.append('No auto-fixable naming, comment, or duplicate code issues found.')
+        return suggestions 
