@@ -38,6 +38,11 @@ codestate [directory] [options]
 - `--maxmin`          Show file with most/least lines
 - `--authors`         Show git main author and last modifier for each file
 - `--langdist`        Show language (file extension) distribution as ASCII pie chart
+- `--naming`          Check function/class naming conventions (PEP8, PascalCase)
+- `--tree`            Show ASCII tree view of project structure
+- `--apidoc`          Show API/function/class docstring summaries
+- `--warnsize`        Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)
+- `--regex`           User-defined regex rules for custom code checks (space separated, enclose in quotes)
 
 ## Features
 - Count lines of code per file type
@@ -54,6 +59,11 @@ codestate [directory] [options]
 - Show file with most/least lines (`--maxmin`)
 - Show git main author and last modifier for each file (`--authors`)
 - Show language distribution as ASCII pie chart (`--langdist`)
+- Check function/class naming conventions (`--naming`)
+- Show ASCII tree view of project structure (`--tree`)
+- Extract API/function/class docstring summaries (`--apidoc`)
+- Warn for large files/functions (`--warnsize`)
+- User-defined regex rules for custom code checks (`--regex`)
 
 ## Examples
 
@@ -112,12 +122,32 @@ Show language distribution as ASCII pie chart:
 codestate --langdist
 ```
 
-## Upcoming Features
-- Function/class naming convention check (PEP8, camelCase, snake_case, etc.)
-- ASCII tree view of project structure
-- API/function docstring summary extraction
-- Large file/function warning (over threshold lines)
-- User-defined regex rules for custom code checks
+Check function/class naming conventions:
+```bash
+codestate --naming
+```
+
+Show ASCII tree view of project structure:
+```bash
+codestate --tree
+```
+
+Show API/function/class docstring summaries:
+```bash
+codestate --apidoc
+```
+
+Warn for large files/functions (default 300/50 lines, or specify):
+```bash
+codestate --warnsize
+codestate --warnsize 200 30
+```
+
+User-defined regex rules for custom code checks:
+```bash
+codestate --regex "TODO" "def [A-Z]"
+codestate --regex "password" "eval\("
+```
 
 ## Contributing
 

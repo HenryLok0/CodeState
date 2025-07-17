@@ -2,6 +2,8 @@
 Visualizer module for ASCII chart output.
 """
 
+import os
+
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
     Print an ASCII bar chart for the given data.
@@ -49,6 +51,29 @@ def ascii_pie_chart(data, value_key, label_key='ext', title=None):
         percent = (value / total) * 100 if total else 0
         pie = '●' * int(percent // 5)
         print(f"{label} | {pie} {percent:.1f}%")
+
+def print_ascii_tree(root_path, max_depth=5, prefix=""):
+    """
+    Print an ASCII tree view of the directory structure.
+    root_path: directory to print
+    max_depth: maximum depth to display
+    prefix: internal use for recursion
+    """
+    if max_depth < 0:
+        return
+    entries = []
+    try:
+        entries = sorted(os.listdir(root_path))
+    except Exception:
+        return
+    entries = [e for e in entries if not e.startswith('.')]
+    for idx, entry in enumerate(entries):
+        path = os.path.join(root_path, entry)
+        connector = "└── " if idx == len(entries) - 1 else "├── "
+        print(prefix + connector + entry)
+        if os.path.isdir(path):
+            extension = "    " if idx == len(entries) - 1 else "│   "
+            print_ascii_tree(path, max_depth-1, prefix + extension)
 
 def html_report(data, title='Code Statistics'):
     """

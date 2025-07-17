@@ -5,6 +5,7 @@ from collections import defaultdict
 import concurrent.futures
 import hashlib
 import subprocess
+import ast
 
 class Analyzer:
     """
@@ -33,7 +34,7 @@ class Analyzer:
         self.file_details = []  # List of per-file stats
         self.duplicates = []  # List of duplicate code info
 
-    def analyze(self):
+    def analyze(self, regex_rules=None):
         # Recursively scan files and collect statistics (multithreaded)
         files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -46,6 +47,11 @@ class Analyzer:
                 data['function_avg_length'] = (data['total_lines'] / data['function_count']) if data['function_count'] else 0
         self._detect_duplicates()
         self._detect_git_authors()
+        self._check_naming_conventions()
+        self._extract_api_doc_summaries()
+        self._detect_large_warnings()
+        if regex_rules:
+            self._check_regex_rules(regex_rules)
         # Find max/min file by total_lines
         if self.file_details:
             self.max_file = max(self.file_details, key=lambda x: x['total_lines'])
@@ -53,6 +59,68 @@ class Analyzer:
         else:
             self.max_file = self.min_file = None
         return self.stats
+
+    def _detect_large_warnings(self, threshold_file=300, threshold_func=50):
+        # Warn for large files and large functions (Python only for functions)
+        self.large_warnings = {'files': [], 'functions': []}
+        for file_stat in self.file_details:
+            if file_stat['total_lines'] > threshold_file:
+                self.large_warnings['files'].append({
+                    'file': file_stat['path'],
+                    'lines': file_stat['total_lines'],
+                    'threshold': threshold_file
+                })
+            if file_stat['ext'] == '.py':
+                path = file_stat['path']
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                        tree = ast.parse(f.read(), filename=path)
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.FunctionDef):
+                            start = node.lineno
+                            end = max([n.lineno for n in ast.walk(node) if hasattr(n, 'lineno')], default=start)
+                            func_lines = end - start + 1
+                            if func_lines > threshold_func:
+                                self.large_warnings['functions'].append({
+                                    'file': path,
+                                    'function': node.name,
+                                    'lines': func_lines,
+                                    'line': start,
+                                    'threshold': threshold_func
+                                })
+                except Exception:
+                    continue
+
+    def get_large_warnings(self, threshold_file=300, threshold_func=50):
+        # Return large file/function warnings
+        return getattr(self, 'large_warnings', {'files': [], 'functions': []})
+
+    def _extract_api_doc_summaries(self):
+        # Only extract for Python files
+        self.api_doc_summaries = []
+        for file_stat in self.file_details:
+            if file_stat['ext'] != '.py':
+                continue
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                        doc = ast.get_docstring(node)
+                        self.api_doc_summaries.append({
+                            'type': 'function' if isinstance(node, ast.FunctionDef) else 'class',
+                            'name': node.name,
+                            'file': path,
+                            'line': node.lineno,
+                            'docstring': doc or ''
+                        })
+            except Exception:
+                continue
+
+    def get_api_doc_summaries(self):
+        # Return list of API doc summaries
+        return getattr(self, 'api_doc_summaries', [])
 
     def _detect_duplicates(self, block_size=5):
         # Detect duplicate code blocks of block_size lines across all files
@@ -101,6 +169,64 @@ class Analyzer:
     def get_git_authors(self):
         # Return dict: file path -> {'main_author', 'last_author'}
         return getattr(self, 'git_authors', None)
+
+    def _check_naming_conventions(self):
+        # Only check Python files for now
+        self.naming_violations = []
+        for file_stat in self.file_details:
+            if file_stat['ext'] != '.py':
+                continue
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef):
+                        if not self._is_snake_case(node.name):
+                            self.naming_violations.append({'type': 'function', 'name': node.name, 'file': path, 'line': node.lineno, 'rule': 'snake_case'})
+                    if isinstance(node, ast.ClassDef):
+                        if not self._is_pascal_case(node.name):
+                            self.naming_violations.append({'type': 'class', 'name': node.name, 'file': path, 'line': node.lineno, 'rule': 'PascalCase'})
+            except Exception:
+                continue
+
+    def _is_snake_case(self, name):
+        # Check if name is snake_case
+        import re
+        return bool(re.match(r'^[a-z_][a-z0-9_]*$', name))
+
+    def _is_pascal_case(self, name):
+        # Check if name is PascalCase
+        import re
+        return bool(re.match(r'^[A-Z][a-zA-Z0-9]*$', name))
+
+    def get_naming_violations(self):
+        # Return list of naming violations
+        return getattr(self, 'naming_violations', [])
+
+    def _check_regex_rules(self, regex_rules):
+        # regex_rules: list of regex strings
+        import re
+        self.regex_matches = []
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for lineno, line in enumerate(f, 1):
+                        for rule in regex_rules:
+                            if re.search(rule, line):
+                                self.regex_matches.append({
+                                    'file': path,
+                                    'line': lineno,
+                                    'rule': rule,
+                                    'content': line.strip()
+                                })
+            except Exception:
+                continue
+
+    def get_regex_matches(self):
+        # Return list of regex matches
+        return getattr(self, 'regex_matches', [])
 
     def _iter_files(self, root):
         # Generator that yields files, skipping excluded directories
