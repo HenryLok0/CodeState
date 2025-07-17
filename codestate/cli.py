@@ -4,6 +4,7 @@ CLI entry point for codestate.
 import sys
 import argparse
 import json
+import os
 from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree
 
@@ -48,25 +49,28 @@ def main():
     if args.html:
         result = html_report(data, title='Code Statistics')
         if args.output:
+            abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8') as f:
                 f.write(result)
-            print(f'HTML report written to {args.output}')
+            print(f'HTML report written to {abs_path}')
         else:
             print(result)
     elif args.md:
         result = markdown_report(data, title='Code Statistics')
         if args.output:
+            abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8') as f:
                 f.write(result)
-            print(f'Markdown report written to {args.output}')
+            print(f'Markdown report written to {abs_path}')
         else:
             print(result)
     elif args.json:
         result = json.dumps(data, indent=2, ensure_ascii=False)
         if args.output:
+            abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8') as f:
                 f.write(result)
-            print(f'JSON report written to {args.output}')
+            print(f'JSON report written to {abs_path}')
         else:
             print(result)
     else:
