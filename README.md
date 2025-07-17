@@ -44,6 +44,16 @@ codestate [directory] [options]
 - `--warnsize`        Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)
 - `--regex`           User-defined regex rules for custom code checks (space separated, enclose in quotes)
 - `--output`, `-o`      Output file for HTML/Markdown/JSON export
+- `--hotspot`          Show most frequently changed files (git hotspots)
+- `--health`           Show project health score and suggestions
+- `--groupdir`         Show grouped statistics by top-level directory
+- `--groupext`         Show grouped statistics by file extension
+- `--complexitymap`    Show ASCII heatmap of file complexity
+- `--deadcode`         Show unused (dead) functions/classes in Python files
+- `--ci`               CI/CD mode: exit non-zero if major issues found
+- `--summary`          Generate a markdown project summary (print or --output)
+- `--typestats`        Show function parameter/type annotation statistics (Python)
+- `--security`         Scan for common insecure patterns and secrets
 
 ## Features
 - Count lines of code per file type
@@ -65,6 +75,16 @@ codestate [directory] [options]
 - Extract API/function/class docstring summaries (`--apidoc`)
 - Warn for large files/functions (`--warnsize`)
 - User-defined regex rules for custom code checks (`--regex`)
+- Show most frequently changed files (git hotspots) (`--hotspot`)
+- Show project health score and suggestions (`--health`)
+- Show grouped statistics by top-level directory (`--groupdir`)
+- Show grouped statistics by file extension (`--groupext`)
+- Show ASCII heatmap of file complexity (`--complexitymap`)
+- Show unused (dead) functions/classes in Python files (`--deadcode`)
+- CI/CD mode: exit non-zero if major issues found (`--ci`)
+- Generate a markdown project summary (`--summary`)
+- Show function parameter/type annotation statistics (`--typestats`)
+- Scan for common insecure patterns and secrets (`--security`)
 
 ## Examples
 
@@ -163,6 +183,56 @@ codestate --md --output report.md
 Export results as JSON to a file:
 ```bash
 codestate --json --output result.json
+```
+
+Show most frequently changed files (git hotspots):
+```bash
+codestate --hotspot
+```
+
+Show project health score and suggestions:
+```bash
+codestate --health
+```
+
+Show grouped statistics by top-level directory:
+```bash
+codestate --groupdir
+```
+
+Show grouped statistics by file extension:
+```bash
+codestate --groupext
+```
+
+Show ASCII heatmap of file complexity:
+```bash
+codestate --complexitymap
+```
+
+Show unused (dead) functions/classes in Python files:
+```bash
+codestate --deadcode
+```
+
+CI/CD mode: exit non-zero if major issues found:
+```bash
+codestate --ci
+```
+
+Generate a markdown project summary:
+```bash
+codestate --summary --output PROJECT_SUMMARY.md
+```
+
+Show function parameter/type annotation statistics:
+```bash
+codestate --typestats
+```
+
+Scan for common insecure patterns and secrets:
+```bash
+codestate --security
 ```
 
 ## Contributing

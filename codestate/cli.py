@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from .analyzer import Analyzer
-from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree
+from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary
 
 def main():
     # Parse CLI arguments
@@ -28,6 +28,16 @@ def main():
     parser.add_argument('--warnsize', nargs='*', type=int, help='Warn for large files/functions (optionally specify file and function line thresholds, default 300/50)')
     parser.add_argument('--regex', nargs='+', help='User-defined regex rules for custom code checks (space separated, enclose in quotes)')
     parser.add_argument('--output', '-o', type=str, help='Output file for HTML/Markdown/JSON export')
+    parser.add_argument('--hotspot', action='store_true', help='Show most frequently changed files (git hotspots)')
+    parser.add_argument('--health', action='store_true', help='Show project health score and suggestions')
+    parser.add_argument('--groupdir', action='store_true', help='Show grouped statistics by top-level directory')
+    parser.add_argument('--groupext', action='store_true', help='Show grouped statistics by file extension')
+    parser.add_argument('--complexitymap', action='store_true', help='Show ASCII heatmap of file complexity')
+    parser.add_argument('--deadcode', action='store_true', help='Show unused (dead) functions/classes in Python files')
+    parser.add_argument('--ci', action='store_true', help='CI/CD mode: exit non-zero if major issues found')
+    parser.add_argument('--summary', action='store_true', help='Generate a markdown project summary (print or --output)')
+    parser.add_argument('--typestats', action='store_true', help='Show function parameter/type annotation statistics (Python)')
+    parser.add_argument('--security', action='store_true', help='Scan for common insecure patterns and secrets')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -143,6 +153,111 @@ def main():
                 print('\nCustom regex matches:')
                 for m in matches:
                     print(f"{m['file']} (line {m['line']}): [{m['rule']}] {m['content']}")
+        if args.hotspot:
+            hotspots = analyzer.get_git_hotspots(top_n=10)
+            if not hotspots:
+                print('No git hotspot data found (not a git repo or no commits).')
+            else:
+                print('\nGit Hotspots (most frequently changed files):')
+                for path, count in hotspots:
+                    print(f'{path}: {count} commits')
+        if args.health:
+            report = analyzer.get_health_report()
+            if not report:
+                print('No health report available.')
+            else:
+                print(f"\nProject Health Score: {report['score']} / 100")
+                print(f"Average comment density: {report['avg_comment_density']:.2%}")
+                print(f"Average function complexity: {report['avg_complexity']:.2f}")
+                print(f"TODO/FIXME count: {report['todo_count']}")
+                print(f"Naming violations: {report['naming_violations']}")
+                print(f"Duplicate code blocks: {report['duplicate_blocks']}")
+                print(f"Large files: {report['large_files']}")
+                print(f"Large functions: {report['large_functions']}")
+                if report['suggestions']:
+                    print("\nSuggestions:")
+                    for s in report['suggestions']:
+                        print(f"- {s}")
+                else:
+                    print("\nNo major issues detected. Great job!")
+        if args.complexitymap:
+            ascii_complexity_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
+        if args.deadcode:
+            unused = analyzer.get_unused_defs()
+            if not unused:
+                print('No unused (dead) functions/classes found.')
+            else:
+                print('\nUnused (dead) functions/classes:')
+                for d in unused:
+                    print(f"{d['type']} '{d['name']}' in {d['file']} (line {d['line']})")
+        if args.typestats:
+            stats = analyzer.get_api_param_type_stats()
+            print('\nFunction Parameter/Type Annotation Statistics:')
+            print(f"Total functions: {stats.get('total_functions', 0)}")
+            print(f"Total parameters: {stats.get('total_parameters', 0)}")
+            print(f"Annotated parameters: {stats.get('annotated_parameters', 0)}")
+            print(f"Annotated returns: {stats.get('annotated_returns', 0)}")
+            print(f"Parameter annotation coverage: {stats.get('param_annotation_coverage', 0):.2%}")
+            print(f"Return annotation coverage: {stats.get('return_annotation_coverage', 0):.2%}")
+    if args.groupdir:
+        grouped = analyzer.get_grouped_stats(by='dir')
+        print('\nGrouped statistics by top-level directory:')
+        for d, stats in grouped.items():
+            print(f'{d}: {stats}')
+    if args.groupext:
+        grouped = analyzer.get_grouped_stats(by='ext')
+        print('\nGrouped statistics by file extension:')
+        for ext, stats in grouped.items():
+            print(f'{ext}: {stats}')
+
+    if args.ci:
+        # Criteria: health score < 80, or any naming violations, large files/functions, or dead code
+        report = analyzer.get_health_report()
+        naming_violations = analyzer.get_naming_violations()
+        large_warn = analyzer.get_large_warnings()
+        deadcode = analyzer.get_unused_defs()
+        fail = False
+        reasons = []
+        if report and report['score'] < 80:
+            fail = True
+            reasons.append(f"Health score too low: {report['score']}")
+        if naming_violations:
+            fail = True
+            reasons.append(f"Naming violations: {len(naming_violations)}")
+        if large_warn['files'] or large_warn['functions']:
+            fail = True
+            reasons.append(f"Large files: {len(large_warn['files'])}, Large functions: {len(large_warn['functions'])}")
+        if deadcode:
+            fail = True
+            reasons.append(f"Dead code: {len(deadcode)} unused functions/classes")
+        if fail:
+            print("\nCI/CD check failed due to:")
+            for r in reasons:
+                print(f"- {r}")
+            sys.exit(1)
+        else:
+            print("\nCI/CD check passed. No major issues detected.")
+            sys.exit(0)
+
+    if args.summary:
+        hotspots = analyzer.get_git_hotspots(top_n=10)
+        summary_md = generate_markdown_summary(stats, analyzer.get_health_report(), hotspots)
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(summary_md)
+            print(f'Markdown project summary written to {abs_path}')
+        else:
+            print(summary_md)
+
+    if args.security:
+        issues = analyzer.get_security_issues()
+        if not issues:
+            print('No security issues detected.')
+        else:
+            print('\nSecurity issues detected:')
+            for i in issues:
+                print(f"{i['file']} (line {i['line']}): {i['desc']}\n    {i['content']}")
 
 if __name__ == "__main__":
     main() 

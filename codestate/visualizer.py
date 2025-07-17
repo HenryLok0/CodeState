@@ -54,6 +54,32 @@ def ascii_pie_chart(data, value_key, label_key='ext', title=None):
         pie = '●' * int(percent // 5)
         print(f"{label} | {pie} {percent:.1f}%")
 
+def ascii_complexity_heatmap(file_details, title=None):
+    """
+    Print an ASCII heatmap for file/function complexity.
+    file_details: list of per-file stats (from analyzer.get_file_details())
+    """
+    if title:
+        print(f"\n{title}")
+    if not file_details:
+        print("No data to display.")
+        return
+    # Define thresholds (can be tuned)
+    low = 1.5
+    high = 3.0
+    print(f"{'File':40} | {'Complexity':10} | Heatmap")
+    print('-'*65)
+    for f in file_details:
+        cplx = f.get('complexity', 0)
+        if cplx < low:
+            symbol = '░'
+        elif cplx < high:
+            symbol = '▒'
+        else:
+            symbol = '▓'
+        bar = symbol * min(int(cplx * 2), 40)
+        print(f"{f['path'][:40]:40} | {cplx:10.2f} | {bar}")
+
 def print_ascii_tree(root_path, max_depth=5, prefix=""):
     """
     Print an ASCII tree view of the directory structure.
@@ -101,4 +127,40 @@ def markdown_report(data, title='Code Statistics'):
         md.append('|' + '|'.join(['---'] * len(headers)) + '|')
         for item in data:
             md.append('|' + '|'.join(str(item[h]) for h in headers) + '|')
-    return '\n'.join(md) 
+    return '\n'.join(md)
+
+def generate_markdown_summary(stats, health_report, hotspots=None):
+    """
+    Generate a markdown project summary from stats, health report, and hotspots.
+    """
+    lines = []
+    lines.append('# Project Code Summary')
+    lines.append('')
+    lines.append('## Overall Statistics')
+    lines.append('| Extension | Files | Lines | Comments | Functions | TODOs |')
+    lines.append('|-----------|-------|-------|----------|-----------|-------|')
+    for ext, info in stats.items():
+        lines.append(f"| {ext} | {info['file_count']} | {info['total_lines']} | {info['comment_lines']} | {info['function_count']} | {info.get('todo_count', 0)} |")
+    lines.append('')
+    if health_report:
+        lines.append('## Project Health')
+        lines.append(f"- **Health Score:** {health_report['score']} / 100")
+        lines.append(f"- **Average Comment Density:** {health_report['avg_comment_density']:.2%}")
+        lines.append(f"- **Average Function Complexity:** {health_report['avg_complexity']:.2f}")
+        lines.append(f"- **TODO/FIXME Count:** {health_report['todo_count']}")
+        lines.append(f"- **Naming Violations:** {health_report['naming_violations']}")
+        lines.append(f"- **Duplicate Code Blocks:** {health_report['duplicate_blocks']}")
+        lines.append(f"- **Large Files:** {health_report['large_files']}")
+        lines.append(f"- **Large Functions:** {health_report['large_functions']}")
+        if health_report['suggestions']:
+            lines.append('### Suggestions:')
+            for s in health_report['suggestions']:
+                lines.append(f"- {s}")
+    if hotspots:
+        lines.append('')
+        lines.append('## Git Hotspots (Most Frequently Changed Files)')
+        lines.append('| File | Commits |')
+        lines.append('|------|---------|')
+        for path, count in hotspots:
+            lines.append(f"| {path} | {count} |")
+    return '\n'.join(lines) 

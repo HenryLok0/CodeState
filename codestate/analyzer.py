@@ -50,8 +50,14 @@ class Analyzer:
         self._check_naming_conventions()
         self._extract_api_doc_summaries()
         self._detect_large_warnings()
+        self._analyze_git_hotspots()
         if regex_rules:
             self._check_regex_rules(regex_rules)
+        self._generate_health_report()
+        self._generate_grouped_stats()
+        self._detect_unused_defs()
+        self._analyze_api_param_type_stats()
+        self._scan_security_issues()
         # Find max/min file by total_lines
         if self.file_details:
             self.max_file = max(self.file_details, key=lambda x: x['total_lines'])
@@ -59,6 +65,159 @@ class Analyzer:
         else:
             self.max_file = self.min_file = None
         return self.stats
+
+    def _scan_security_issues(self):
+        # Scan for common insecure patterns
+        import re
+        patterns = [
+            (r'\beval\s*\(', 'Use of eval()'),
+            (r'\bexec\s*\(', 'Use of exec()'),
+            (r'\bpickle\.load\s*\(', 'Use of pickle.load()'),
+            (r'\bos\.system\s*\(', 'Use of os.system()'),
+            (r'\bsubprocess\.Popen\s*\(', 'Use of subprocess.Popen()'),
+            (r'\binput\s*\(', 'Use of input()'),
+            (r'password\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded password'),
+            (r'token\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded token'),
+            (r'secret\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded secret'),
+            (r'api[_-]?key\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded API key'),
+        ]
+        issues = []
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for lineno, line in enumerate(f, 1):
+                        for pat, desc in patterns:
+                            if re.search(pat, line, re.IGNORECASE):
+                                issues.append({'file': path, 'line': lineno, 'desc': desc, 'content': line.strip()})
+            except Exception:
+                continue
+        self.security_issues = issues
+
+    def get_security_issues(self):
+        # Return list of detected security issues
+        return getattr(self, 'security_issues', [])
+
+    def _generate_grouped_stats(self):
+        # Group stats by top-level directory and by extension
+        from collections import defaultdict
+        self.grouped_by_dir = defaultdict(lambda: {'file_count': 0, 'total_lines': 0, 'comment_lines': 0, 'function_count': 0})
+        self.grouped_by_ext = defaultdict(lambda: {'file_count': 0, 'total_lines': 0, 'comment_lines': 0, 'function_count': 0})
+        for f in self.file_details:
+            # By directory (top-level folder)
+            rel_path = os.path.relpath(f['path'], self.root_dir)
+            parts = rel_path.split(os.sep)
+            top_dir = parts[0] if len(parts) > 1 else '.'
+            self.grouped_by_dir[top_dir]['file_count'] += 1
+            self.grouped_by_dir[top_dir]['total_lines'] += f['total_lines']
+            self.grouped_by_dir[top_dir]['comment_lines'] += f['comment_lines']
+            self.grouped_by_dir[top_dir]['function_count'] += f['function_count']
+            # By extension
+            ext = f['ext']
+            self.grouped_by_ext[ext]['file_count'] += 1
+            self.grouped_by_ext[ext]['total_lines'] += f['total_lines']
+            self.grouped_by_ext[ext]['comment_lines'] += f['comment_lines']
+            self.grouped_by_ext[ext]['function_count'] += f['function_count']
+
+    def get_grouped_stats(self, by='dir'):
+        # Return grouped stats by 'dir' or 'ext'
+        if by == 'dir':
+            return dict(self.grouped_by_dir)
+        elif by == 'ext':
+            return dict(self.grouped_by_ext)
+        else:
+            return {}
+
+    def _generate_health_report(self):
+        # Compute a health score and suggestions
+        score = 100
+        suggestions = []
+        # Comment density
+        avg_comment_density = 0
+        total_lines = 0
+        total_comments = 0
+        for ext, data in self.stats.items():
+            total_lines += data['total_lines']
+            total_comments += data['comment_lines']
+        if total_lines:
+            avg_comment_density = total_comments / total_lines
+        if avg_comment_density < 0.05:
+            score -= 10
+            suggestions.append('Increase comment density (currently low).')
+        # Duplicate code
+        if self.duplicates and len(self.duplicates) > 0:
+            score -= 10
+            suggestions.append('Reduce duplicate code blocks.')
+        # Large files/functions
+        large_warn = getattr(self, 'large_warnings', {'files': [], 'functions': []})
+        if large_warn['files']:
+            score -= 5
+            suggestions.append('Refactor or split large files.')
+        if large_warn['functions']:
+            score -= 5
+            suggestions.append('Refactor or split large functions.')
+        # TODO/FIXME
+        todo_count = sum(f['todo_count'] for f in self.file_details)
+        if todo_count > 10:
+            score -= 5
+            suggestions.append('Resolve outstanding TODO/FIXME comments.')
+        # Naming violations
+        naming_violations = getattr(self, 'naming_violations', [])
+        if naming_violations:
+            score -= 5
+            suggestions.append('Fix function/class naming convention violations.')
+        # Complexity
+        avg_complexity = 0
+        total_func = 0
+        total_cplx = 0
+        for ext, data in self.stats.items():
+            total_func += data['function_count']
+            total_cplx += data['complexity']
+        if total_func:
+            avg_complexity = total_cplx / total_func
+        if avg_complexity > 3:
+            score -= 5
+            suggestions.append('Reduce average function complexity.')
+        # Bound score
+        score = max(0, min(100, score))
+        self.health_report = {
+            'score': score,
+            'avg_comment_density': avg_comment_density,
+            'avg_complexity': avg_complexity,
+            'todo_count': todo_count,
+            'naming_violations': len(naming_violations),
+            'duplicate_blocks': len(self.duplicates) if self.duplicates else 0,
+            'large_files': len(large_warn['files']),
+            'large_functions': len(large_warn['functions']),
+            'suggestions': suggestions
+        }
+
+    def get_health_report(self):
+        # Return health report dict
+        return getattr(self, 'health_report', None)
+
+    def _analyze_git_hotspots(self):
+        # Analyze git log to find most frequently changed files
+        git_dir = self.root_dir / '.git'
+        if not git_dir.exists():
+            self.git_hotspots = None
+            return
+        import subprocess
+        from collections import Counter
+        try:
+            cmd = ['git', '-C', str(self.root_dir), 'log', '--name-only', '--pretty=format:']
+            output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+            files = [line.strip() for line in output.splitlines() if line.strip()]
+            counter = Counter(files)
+            self.git_hotspots = counter.most_common()
+        except Exception:
+            self.git_hotspots = None
+
+    def get_git_hotspots(self, top_n=10):
+        # Return list of (file, commit_count) for the most frequently changed files
+        if not getattr(self, 'git_hotspots', None):
+            return []
+        return self.git_hotspots[:top_n]
 
     def _detect_large_warnings(self, threshold_file=300, threshold_func=50):
         # Warn for large files and large functions (Python only for functions)
@@ -227,6 +386,78 @@ class Analyzer:
     def get_regex_matches(self):
         # Return list of regex matches
         return getattr(self, 'regex_matches', [])
+
+    def _detect_unused_defs(self):
+        # Only for Python files: find functions/classes defined but never used
+        import ast
+        defined = set()
+        used = set()
+        for file_stat in self.file_details:
+            if file_stat['ext'] != '.py':
+                continue
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef) or isinstance(node, ast.ClassDef):
+                        defined.add((node.name, path, node.lineno, type(node).__name__))
+                    # Find all function/class usage (calls, instantiations)
+                    if isinstance(node, ast.Call):
+                        if hasattr(node.func, 'id'):
+                            used.add(node.func.id)
+                        elif hasattr(node.func, 'attr'):
+                            used.add(node.func.attr)
+                    if isinstance(node, ast.Attribute):
+                        used.add(node.attr)
+            except Exception:
+                continue
+        self.unused_defs = [
+            {'name': name, 'file': file, 'line': line, 'type': typ}
+            for (name, file, line, typ) in defined if name not in used
+        ]
+
+    def get_unused_defs(self):
+        # Return list of unused function/class definitions
+        return getattr(self, 'unused_defs', [])
+
+    def _analyze_api_param_type_stats(self):
+        # For Python files: count function parameters and type annotation coverage
+        import ast
+        total_funcs = 0
+        total_params = 0
+        total_annotated_params = 0
+        total_annotated_returns = 0
+        for file_stat in self.file_details:
+            if file_stat['ext'] != '.py':
+                continue
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef):
+                        total_funcs += 1
+                        for arg in node.args.args:
+                            total_params += 1
+                            if arg.annotation is not None:
+                                total_annotated_params += 1
+                        if node.returns is not None:
+                            total_annotated_returns += 1
+            except Exception:
+                continue
+        self.api_param_type_stats = {
+            'total_functions': total_funcs,
+            'total_parameters': total_params,
+            'annotated_parameters': total_annotated_params,
+            'annotated_returns': total_annotated_returns,
+            'param_annotation_coverage': (total_annotated_params / total_params) if total_params else 0,
+            'return_annotation_coverage': (total_annotated_returns / total_funcs) if total_funcs else 0
+        }
+
+    def get_api_param_type_stats(self):
+        # Return function parameter/type annotation statistics
+        return getattr(self, 'api_param_type_stats', {})
 
     def _iter_files(self, root):
         # Generator that yields files, skipping excluded directories
