@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='codestate',
-    version='0.3.5',
+    version='0.3.6',
     description='A CLI tool for codebase statistics and ASCII visualization',
     author='Your Name',
     packages=find_packages(),
-    install_requires=[],
+    install_requires=['pathspec'],
     entry_points={
         'console_scripts': [
             'codestate=codestate.cli:main',  # This entry point allows users to run `codestate` in the terminal after installation.
