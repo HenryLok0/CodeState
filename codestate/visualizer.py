@@ -5,6 +5,7 @@ Visualizer module for ASCII chart output.
 import os
 import csv
 import io
+import re
 
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
@@ -372,12 +373,39 @@ def generate_sustainability_badge_svg(score, output_path, label="Sustainability"
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(svg))
 
-def generate_auto_readme(stats, health, contributors, hotspots, structure):
+def get_project_name_from_git_or_dir(root_path):
+    """
+    Try to get project name from .git/config (github or remote url), else use directory name.
+    """
+    git_config = os.path.join(root_path, '.git', 'config')
+    if os.path.exists(git_config):
+        with open(git_config, 'r', encoding='utf-8', errors='ignore') as f:
+            text = f.read()
+        # Try to find github or remote url
+        m = re.search(r'url = .*[/:]([^/\\]+/[^/\\]+?)(?:\\.git)?$', text, re.MULTILINE)
+        if m:
+            repo = m.group(1)
+            # Use repo name only (after last /)
+            name = repo.split('/')[-1]
+            return name
+    # fallback: use directory name
+    return os.path.basename(os.path.abspath(root_path))
+
+def generate_auto_readme(stats, health, contributors, hotspots, structure, badges=None, root_path='.'):
     """
     Auto-generate a README template with project structure, language stats, health score, and contributors.
+    Optionally insert badges under the main title. Project name auto-detected.
     """
     lines = []
-    lines.append('# Project CodeState Summary')
+    project_name = get_project_name_from_git_or_dir(root_path)
+    if project_name:
+        lines.append(f'# Project {project_name} CodeState Summary')
+    else:
+        lines.append('# Project CodeState Summary')
+    # Insert badges if provided
+    if badges:
+        lines.append('')
+        lines.extend(badges)
     lines.append('')
     lines.append('## Project Structure')
     if structure:
@@ -406,12 +434,13 @@ def generate_auto_readme(stats, health, contributors, hotspots, structure):
             for s in health['suggestions']:
                 lines.append(f"- {s}")
     if contributors:
-        lines.append('')
         lines.append('## Top Contributors')
-        lines.append('| Author | Files | Lines | Commits | Main Exts |')
-        lines.append('|--------|-------|-------|---------|-----------|')
-        for c in contributors[:5]:
-            lines.append(f"| {c['author']} | {c['file_count']} | {c['line_count']} | {c['commit_count']} | {c.get('main_exts','')} |")
+        lines.append('| author | file_count | line_count | commit_count | workload_percent |')
+        lines.append('|--------|------------|------------|--------------|------------------|')
+        for c in contributors:
+            lines.append(
+                f"| {c.get('author','')} | {c.get('file_count','')} | {c.get('line_count','')} | {c.get('commit_count','')} | {c.get('workload_percent','')} |"
+            )
     if hotspots:
         lines.append('')
         lines.append('## Git Hotspots (Most Frequently Changed Files)')

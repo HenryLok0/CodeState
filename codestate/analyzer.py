@@ -1082,8 +1082,9 @@ class Analyzer:
         dups = self.get_duplicates()
         if dups:
             for group in dups:
+                details = [f"{path}:{line}" for path, line, _ in group]
                 files = set(path for path, _, _ in group)
-                suggestions.append(f"[Duplicate] Found {len(group)} duplicate code blocks in files: {', '.join(files)}. Suggest extracting as a shared function/module.")
+                suggestions.append(f"[Duplicate] Found {len(group)} duplicate code blocks at: {', '.join(details)}. Suggest extracting as a shared function/module.")
         if not suggestions:
             suggestions.append('No auto-fixable naming, comment, or duplicate code issues found.')
         return suggestions 
