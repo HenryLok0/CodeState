@@ -763,26 +763,44 @@ class Analyzer:
         return getattr(self, 'style_issues', [])
 
     def _analyze_contributor_stats(self):
-        # For each file, use git log to count lines/commits per author
+        # For each file, use git log to count lines/commits per author and collect detailed stats
         git_dir = self.root_dir / '.git'
         if not git_dir.exists():
             self.contributor_stats = None
             return
         from collections import Counter, defaultdict
+        import datetime
         author_files = defaultdict(set)
         author_lines = Counter()
         author_commits = Counter()
+        author_added = Counter()
+        author_deleted = Counter()
+        author_commit_dates = defaultdict(list)
+        author_file_lines = defaultdict(lambda: defaultdict(int))
+        author_exts = defaultdict(Counter)
+        today = datetime.date.today()
+        author_active_days = defaultdict(set)
         for file_stat in self.file_details:
             path = file_stat['path']
             rel_path = os.path.relpath(path, self.root_dir)
+            ext = file_stat['ext']
             try:
                 # Get all authors for this file
-                cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%an', rel_path]
-                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL).splitlines()
-                for a in set(authors):
-                    author_files[a].add(path)
-                for a in authors:
-                    author_commits[a] += 1
+                cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%an|%ad', '--date=short', rel_path]
+                log_lines = subprocess.check_output(cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL).splitlines()
+                for line in log_lines:
+                    if '|' in line:
+                        author, date = line.split('|', 1)
+                        author_files[author].add(path)
+                        author_commits[author] += 1
+                        author_commit_dates[author].append(date)
+                        # Active days in last 30 days
+                        try:
+                            d = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+                            if (today - d).days <= 30:
+                                author_active_days[author].add(d)
+                        except Exception:
+                            pass
                 # Use git blame to count lines per author
                 blame_cmd = ['git', '-C', str(self.root_dir), 'blame', '--line-porcelain', rel_path]
                 blame_out = subprocess.check_output(blame_cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
@@ -790,15 +808,56 @@ class Analyzer:
                     if line.startswith('author '):
                         author = line[7:]
                         author_lines[author] += 1
+                        author_file_lines[author][path] += 1
+                        author_exts[author][ext] += 1
+                # Use git log --numstat to count added/deleted lines per author
+                numstat_cmd = ['git', '-C', str(self.root_dir), 'log', '--numstat', '--format=%an', rel_path]
+                out = subprocess.check_output(numstat_cmd, encoding='utf-8', errors='ignore', stderr=subprocess.DEVNULL)
+                current_author = None
+                for l in out.splitlines():
+                    if l.strip() == '':
+                        continue
+                    if not l[0].isdigit() and not l[0] == '-':
+                        current_author = l.strip()
+                        continue
+                    parts = l.strip().split('\t')
+                    if len(parts) == 3 and current_author:
+                        try:
+                            added = int(parts[0]) if parts[0] != '-' else 0
+                            deleted = int(parts[1]) if parts[1] != '-' else 0
+                        except Exception:
+                            added = deleted = 0
+                        author_added[current_author] += added
+                        author_deleted[current_author] += deleted
             except Exception:
                 continue  # Suppress all git errors
         stats = []
         for author in set(list(author_files.keys()) + list(author_lines.keys()) + list(author_commits.keys())):
+            commit_dates = sorted(author_commit_dates[author])
+            first_commit = commit_dates[0] if commit_dates else ''
+            last_commit = commit_dates[-1] if commit_dates else ''
+            total_commits = author_commits[author]
+            total_added = author_added[author]
+            total_deleted = author_deleted[author]
+            avg_lines_per_commit = (total_added + total_deleted) / total_commits if total_commits else 0
+            exts = author_exts[author].most_common(2)
+            main_exts = '/'.join(e[0] for e in exts if e[0])
+            max_file = max(author_file_lines[author].items(), key=lambda x: x[1], default=(None, 0))
+            max_file_lines = max_file[1]
+            active_days_last_30 = len(author_active_days[author])
             stats.append({
                 'author': author,
                 'file_count': len(author_files[author]),
                 'line_count': author_lines[author],
-                'commit_count': author_commits[author]
+                'commit_count': total_commits,
+                'first_commit': first_commit,
+                'last_commit': last_commit,
+                'avg_lines_per_commit': round(avg_lines_per_commit, 1),
+                'main_exts': main_exts,
+                'max_file_lines': max_file_lines,
+                'active_days_last_30': active_days_last_30,
+                'added_lines': total_added,
+                'deleted_lines': total_deleted
             })
         self.contributor_stats = stats
 

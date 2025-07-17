@@ -7,6 +7,7 @@ import json
 import os
 from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure, generate_health_badge
+from . import __version__
 
 def main():
     # Parse CLI arguments
@@ -91,7 +92,7 @@ def main():
         data.append(item)
 
     if args.version:
-        print('codestate version 0.1.7')
+        print(f'codestate version {__version__}')
         sys.exit(0)
     if args.list_extensions:
         # Scan all files and print unique extensions
