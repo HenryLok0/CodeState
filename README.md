@@ -14,12 +14,6 @@ A CLI tool that analyzes your local codebase and generates detailed statistics, 
 pip install codestate
 ```
 
-Or for local development:
-
-```bash
-pip install .
-```
-
 ## Usage
 
 ```bash
@@ -72,6 +66,8 @@ codestate [directory] [options]
 | `--multi`             | Analyze multiple root directories (monorepo support) |
 | `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
 | `--contributors-detail`      | Show detail contributor statistics |
+| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
+| `--badge-sustainability`      | Output SVG sustainability/health badge |
 
 ## Examples
 

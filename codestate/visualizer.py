@@ -283,32 +283,90 @@ def generate_mermaid_structure(root_path, max_depth=5):
     add_node(None, root_path, 0)
     return '\n'.join(lines)
 
-def generate_health_badge(score):
+def generate_lang_card_svg(data, output_path, top_n=8):
     """
-    Generate an SVG badge for project health score.
+    Generate a beautiful SVG language stats card (like GitHub top-langs).
+    data: list of dicts, each with 'ext' and 'total_lines' (from analyzer)
+    output_path: SVG file path to write
+    top_n: number of languages to show
     """
+    # Sort by total_lines, take top_n
+    sorted_data = sorted(data, key=lambda x: x['total_lines'], reverse=True)[:top_n]
+    total = sum(x['total_lines'] for x in sorted_data)
+    # Define a color palette (Material Design)
+    palette = [
+        '#1976D2', '#388E3C', '#FBC02D', '#D32F2F', '#7B1FA2', '#0288D1', '#F57C00', '#388E3C',
+        '#C2185B', '#0097A7', '#FFA000', '#512DA8', '#00796B', '#303F9F', '#455A64', '#0288D1'
+    ]
+    width = 360
+    height = 40 + 36 * len(sorted_data)
+    bar_max_width = 180
+    svg = [
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" fill="none" xmlns="http://www.w3.org/2000/svg">',
+        '<style>\n',
+        '  .title { font: 700 20px "Segoe UI", Arial, sans-serif; fill: #222; }\n',
+        '  .lang { font: 600 15px "Segoe UI", Arial, sans-serif; fill: #333; }\n',
+        '  .count { font: 400 13px "Segoe UI", Arial, sans-serif; fill: #666; }\n',
+        '  .percent { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #1976D2; }\n',
+        '  .bar-bg { fill: #F0F4F8; }\n',
+        '  .bar { rx: 6px; }\n',
+        '  .card { filter: drop-shadow(0 2px 8px #0001); }\n',
+        '</style>'
+    ]
+    svg.append(f'<rect class="card" x="0" y="0" width="{width}" height="{height}" rx="18" fill="#fff"/>')
+    svg.append(f'<text x="24" y="32" class="title">Language Stats</text>')
+    y0 = 56
+    for i, item in enumerate(sorted_data):
+        y = y0 + i * 36
+        color = palette[i % len(palette)]
+        percent = item['total_lines'] / total * 100 if total else 0
+        bar_width = int(bar_max_width * (item['total_lines'] / sorted_data[0]['total_lines'])) if sorted_data[0]['total_lines'] else 0
+        svg.append(f'<rect class="bar-bg" x="120" y="{y-16}" width="{bar_max_width}" height="20" rx="6"/>')
+        svg.append(f'<rect class="bar" x="120" y="{y-16}" width="{bar_width}" height="20" fill="{color}" rx="6"/>')
+        svg.append(f'<text x="32" y="{y}" class="lang">{item["ext"]}</text>')
+        svg.append(f'<text x="120" y="{y+1}" class="count" alignment-baseline="middle">{item["total_lines"]} lines</text>')
+        svg.append(f'<text x="{120+bar_max_width+12}" y="{y+1}" class="percent" alignment-baseline="middle">{percent:.1f}%</text>')
+    svg.append('</svg>')
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(svg))
+
+
+def generate_sustainability_badge_svg(score, output_path, label="Sustainability"):
+    """
+    Generate a modern SVG badge for sustainability/health score.
+    score: int (0-100)
+    output_path: SVG file path to write
+    label: badge label
+    """
+    # Color by score (green/yellow/orange/red)
     if score >= 90:
-        color = 'brightgreen'
+        color = '#43A047'  # Green
     elif score >= 75:
-        color = 'yellow'
+        color = '#FBC02D'  # Yellow
     elif score >= 60:
-        color = 'orange'
+        color = '#FB8C00'  # Orange
     else:
-        color = 'red'
-    svg = f'''
-<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
-  <linearGradient id="b" x2="0" y2="100%">
-    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
-    <stop offset="1" stop-opacity=".1"/>
-  </linearGradient>
-  <rect rx="3" width="120" height="20" fill="#555"/>
-  <rect rx="3" x="60" width="60" height="20" fill="#{color}"/>
-  <path fill="#{color}" d="M60 0h4v20h-4z"/>
-  <rect rx="3" width="120" height="20" fill="url(#b)"/>
-  <g fill="#fff" text-anchor="middle" font-family="Verdana" font-size="11">
-    <text x="30" y="15">health</text>
-    <text x="90" y="15">{score}/100</text>
-  </g>
-</svg>
-'''
-    return svg 
+        color = '#D32F2F'  # Red
+    width = 180
+    height = 36
+    label_w = 110
+    value_w = width - label_w
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<defs>\n',
+        '  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">',
+        '    <stop offset="0%" stop-color="#fff" stop-opacity="0.8"/>',
+        '    <stop offset="100%" stop-color="#fff" stop-opacity="0.5"/>',
+        '  </linearGradient>',
+        '</defs>',
+        f'<g filter="url(#shadow)">',
+        f'  <rect x="0" y="0" width="{label_w}" height="{height}" rx="12" fill="#555"/>',
+        f'  <rect x="{label_w}" y="0" width="{value_w}" height="{height}" rx="12" fill="{color}"/>',
+        f'  <rect x="0" y="0" width="{width}" height="{height}" rx="12" fill="url(#g)"/>',
+        f'  <text x="{label_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="600" fill="#fff">{label}</text>',
+        f'  <text x="{label_w+value_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">{score} / 100</text>',
+        '</g>',
+        '</svg>'
+    ]
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(svg)) 

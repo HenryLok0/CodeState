@@ -7,6 +7,8 @@ import json
 import os
 from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure, generate_health_badge
+# 新增 SVG 卡片/徽章函式
+from .visualizer import generate_lang_card_svg, generate_sustainability_badge_svg
 from . import __version__
 
 def main():
@@ -54,6 +56,8 @@ def main():
     parser.add_argument('--multi', nargs='+', help='Analyze multiple root directories (monorepo support)')
     parser.add_argument('--contributors', action='store_true', help='Show contributor statistics (file count, line count, commit count per author)')
     parser.add_argument('--contributors-detail', action='store_true', help='Show detailed contributor statistics (all available fields)')
+    parser.add_argument('--lang-card-svg', type=str, help='Output SVG language stats card (like GitHub top-langs)')
+    parser.add_argument('--badge-sustainability', type=str, help='Output SVG sustainability/health badge')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -510,6 +514,25 @@ def main():
             print(f'Markdown project summary written to {abs_path}')
         else:
             print(summary_md)
+
+    # 語言統計 SVG 卡片
+    if args.lang_card_svg:
+        # Prepare language stats data (by extension)
+        lang_data = []
+        for ext, info in stats.items():
+            lang_data.append({'ext': ext, 'total_lines': info['total_lines']})
+        # Generate SVG card
+        generate_lang_card_svg(lang_data, args.lang_card_svg)
+        print(f'Language stats SVG card written to {os.path.abspath(args.lang_card_svg)}')
+        return
+    # 可持續性/健康徽章 SVG
+    if args.badge_sustainability:
+        # Get health score from analyzer
+        health = analyzer.get_health_report()
+        score = health['score'] if health else 0
+        generate_sustainability_badge_svg(score, args.badge_sustainability)
+        print(f'Sustainability badge SVG written to {os.path.abspath(args.badge_sustainability)}')
+        return
 
 if __name__ == "__main__":
     main() 
