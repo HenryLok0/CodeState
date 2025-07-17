@@ -52,7 +52,6 @@ def main():
     parser.add_argument('--style-check', action='store_true', help='Check code style: indentation, line length, trailing whitespace, EOF newline')
     parser.add_argument('--multi', nargs='+', help='Analyze multiple root directories (monorepo support)')
     parser.add_argument('--contributors', action='store_true', help='Show contributor statistics (file count, line count, commit count per author)')
-    parser.add_argument('--badge', action='store_true', help='Generate a health score SVG badge')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -211,19 +210,6 @@ def main():
         else:
             print('Contributor Statistics:')
             print_table(stats, headers=["author", "file_count", "line_count", "commit_count"], title=None)
-        return
-
-    if args.badge:
-        report = analyzer.get_health_report()
-        score = report["score"] if report else 0
-        svg = generate_health_badge(score)
-        if args.output:
-            abs_path = os.path.abspath(args.output)
-            with open(args.output, 'w', encoding='utf-8') as f:
-                f.write(svg)
-            print(f'Health badge SVG written to {abs_path}')
-        else:
-            print(svg)
         return
 
     if args.security:

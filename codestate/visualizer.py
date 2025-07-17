@@ -196,6 +196,20 @@ def print_table(rows, headers=None, title=None):
         return
     if headers is None:
         headers = list(rows[0].keys())
+    # If showing contributor stats, sort by commit_count descending and calculate percent
+    if 'commit_count' in headers:
+        try:
+            rows = sorted(rows, key=lambda r: int(r.get('commit_count', 0)), reverse=True)
+            total_commits = sum(int(r.get('commit_count', 0)) for r in rows)
+            for r in rows:
+                if total_commits > 0:
+                    r['percent'] = f"{(int(r.get('commit_count', 0)) / total_commits * 100):.1f}%"
+                else:
+                    r['percent'] = '0.0%'
+            if 'percent' not in headers:
+                headers.append('percent')
+        except Exception:
+            pass  # Fallback: do not sort or add percent if error
     # Format size column if present
     formatted_rows = []
     for row in rows:
