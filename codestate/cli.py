@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--contributors-detail', action='store_true', help='Show detailed contributor statistics (all available fields)')
     parser.add_argument('--lang-card-svg', nargs='?', const='codestate_langs.svg', type=str, help='Output SVG language stats card (like GitHub top-langs)')
     parser.add_argument('--badge-sustainability', nargs='?', const='codestate_sustainability.svg', type=str, help='Output SVG sustainability/health badge')
+    parser.add_argument('--badges', action='store_true', help='Auto-detect and print project language/framework/license/CI badges for README')
     args = parser.parse_args()
 
     # Analyze codebase
@@ -531,6 +532,92 @@ def main():
         output_path = args.badge_sustainability if isinstance(args.badge_sustainability, str) else 'codestate_sustainability.svg'
         generate_sustainability_badge_svg(score, output_path)
         print(f'Sustainability badge SVG written to {os.path.abspath(output_path)}')
+        return
+
+    if args.badges:
+        # Auto-detect language
+        exts = set()
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                exts.add(file_path.suffix.lower())
+        lang_map = {
+            '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.java': 'Java', '.go': 'Go', '.rb': 'Ruby', '.php': 'PHP', '.cs': 'C%23', '.cpp': 'C%2B%2B', '.c': 'C', '.rs': 'Rust', '.kt': 'Kotlin', '.swift': 'Swift', '.m': 'Objective-C', '.scala': 'Scala', '.sh': 'Shell', '.pl': 'Perl', '.r': 'R', '.dart': 'Dart', '.jl': 'Julia', '.lua': 'Lua', '.hs': 'Haskell', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML', '.md': 'Markdown'
+        }
+        lang_count = {}
+        for ext in exts:
+            lang = lang_map.get(ext, ext.lstrip('.').capitalize())
+            lang_count[lang] = lang_count.get(lang, 0) + 1
+        main_lang = max(lang_count, key=lang_count.get) if lang_count else 'Unknown'
+        # Detect framework (simple: look for requirements.txt, package.json, etc.)
+        framework = None
+        req_path = os.path.join(args.directory, 'requirements.txt')
+        if os.path.exists(req_path):
+            with open(req_path, 'r', encoding='utf-8', errors='ignore') as f:
+                reqs = f.read().lower()
+            if 'django' in reqs:
+                framework = 'Django'
+            elif 'flask' in reqs:
+                framework = 'Flask'
+            elif 'fastapi' in reqs:
+                framework = 'FastAPI'
+            elif 'torch' in reqs or 'tensorflow' in reqs:
+                framework = 'ML'
+        pkg_path = os.path.join(args.directory, 'package.json')
+        if os.path.exists(pkg_path):
+            import json as _json
+            with open(pkg_path, 'r', encoding='utf-8', errors='ignore') as f:
+                pkg = _json.load(f)
+            deps = str(pkg.get('dependencies', {})).lower() + str(pkg.get('devDependencies', {})).lower()
+            if 'react' in deps:
+                framework = 'React'
+            elif 'vue' in deps:
+                framework = 'Vue.js'
+            elif 'next' in deps:
+                framework = 'Next.js'
+            elif 'nuxt' in deps:
+                framework = 'Nuxt.js'
+        # Detect license
+        license_type = None
+        for lic_file in ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'license', 'license.txt']:
+            lic_path = os.path.join(args.directory, lic_file)
+            if os.path.exists(lic_path):
+                with open(lic_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lic_text = f.read().lower()
+                if 'mit license' in lic_text:
+                    license_type = 'MIT'
+                elif 'apache license' in lic_text:
+                    license_type = 'Apache'
+                elif 'gpl' in lic_text:
+                    license_type = 'GPL'
+                elif 'bsd' in lic_text:
+                    license_type = 'BSD'
+                elif 'mozilla public license' in lic_text:
+                    license_type = 'MPL'
+                else:
+                    license_type = 'Custom'
+                break
+        # Detect CI (GitHub Actions)
+        ci = None
+        gha_path = os.path.join(args.directory, '.github', 'workflows')
+        if os.path.isdir(gha_path) and any(f.endswith('.yml') or f.endswith('.yaml') for f in os.listdir(gha_path)):
+            ci = 'GitHub Actions'
+        # Print badges
+        print('\nRecommended README badges:')
+        badge_md = []
+        if main_lang != 'Unknown':
+            badge_md.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
+        if framework:
+            badge_md.append(f'![Framework](https://img.shields.io/badge/framework-{framework}-brightgreen?style=flat-square)')
+        if license_type:
+            badge_md.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
+        if ci:
+            badge_md.append(f'![CI](https://img.shields.io/badge/CI-{ci}-blue?style=flat-square)')
+        if badge_md:
+            for b in badge_md:
+                print(b)
+            print('\nYou can copy and paste the above Markdown into your README.')
+        else:
+            print('No badges detected.')
         return
 
 if __name__ == "__main__":
