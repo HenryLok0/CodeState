@@ -100,19 +100,21 @@ def main():
     # 你可以根據其他 CLI 參數再加 output_steps
     total_steps = len(files) + output_steps
     from tqdm import tqdm
-    pbar = tqdm(total=total_steps, desc="總進度")
+    pbar = tqdm(total=total_steps, desc="Progress")
     def file_callback(_):
         pbar.update(1)
     stats = analyzer.analyze(regex_rules=regex_rules, file_callback=file_callback)
     # 檔案分析完畢，進行輸出步驟
     if args.tree:
-        print('Project structure:')
+        print('Project structure:', flush=True)
         print_ascii_tree(args.directory)
         pbar.update(1)
     if args.badges:
         # ... badges 輸出 ...
+        # 假設有 badges 輸出函式
+        # print_badges(...)
         pbar.update(1)
-    # 其他輸出步驟同理
+    # 其他輸出步驟同理，確保 update(1) 在輸出完成後
     pbar.close()
 
     # Prepare data for visualization
