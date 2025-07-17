@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from .analyzer import Analyzer
-from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report
+from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure, generate_health_badge
 
 def main():
     # Parse CLI arguments
@@ -45,10 +45,41 @@ def main():
     parser.add_argument('--version', action='store_true', help='Show codestate version and exit')
     parser.add_argument('--list-extensions', action='store_true', help='List all file extensions found in the project')
     parser.add_argument('--size', action='store_true', help="Show each file's size in bytes as a table")
+    parser.add_argument('--trend', type=str, help='Show line count trend for a specific file (provide file path)')
+    parser.add_argument('--refactor-suggest', action='store_true', help='Show files/functions that are refactor candidates, with reasons')
+    parser.add_argument('--structure-mermaid', action='store_true', help='Generate a Mermaid diagram of the project directory structure')
+    parser.add_argument('--openapi', action='store_true', help='Generate OpenAPI 3.0 JSON for Flask/FastAPI routes')
+    parser.add_argument('--style-check', action='store_true', help='Check code style: indentation, line length, trailing whitespace, EOF newline')
+    parser.add_argument('--multi', nargs='+', help='Analyze multiple root directories (monorepo support)')
+    parser.add_argument('--contributors', action='store_true', help='Show contributor statistics (file count, line count, commit count per author)')
+    parser.add_argument('--badge', action='store_true', help='Generate a health score SVG badge')
     args = parser.parse_args()
 
     # Analyze codebase
     regex_rules = args.regex if args.regex else None
+    if args.multi:
+        all_results = {}
+        for d in args.multi:
+            print(f'Analyzing {d} ...')
+            analyzer = Analyzer(d, file_types=args.ext, exclude_dirs=args.exclude)
+            stats = analyzer.analyze(regex_rules=regex_rules)
+            all_results[d] = stats
+            data = []
+            for ext, info in stats.items():
+                item = {'ext': ext}
+                item.update(info)
+                data.append(item)
+            print(f'--- {d} ---')
+            ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
+            print_comment_density(data, label_key='ext')
+        if args.output:
+            import json
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(json.dumps(all_results, indent=2, ensure_ascii=False))
+            print(f'Multi-project JSON written to {abs_path}')
+        return
+
     analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
     stats = analyzer.analyze(regex_rules=regex_rules)
 
@@ -109,6 +140,111 @@ def main():
         file_details = analyzer.get_file_details_with_size()
         headers = ["path", "ext", "size", "total_lines", "comment_lines", "function_count"]
         print_table(file_details, headers=headers, title="File Sizes and Stats")
+        return
+
+    if args.trend:
+        trend = analyzer.get_file_trend(args.trend)
+        if not trend:
+            print(f'No trend data found for {args.trend}.')
+        else:
+            print(f'Line count trend for {args.trend}:')
+            print('Date       | Lines | Commit')
+            print('-----------+-------+------------------------------------------')
+            for t in trend:
+                lines = t["lines"] if t["lines"] is not None else "-"
+                print(f'{t["date"]:10} | {str(lines):5} | {t["commit"]}')
+        return
+
+    if args.refactor_suggest:
+        suggestions = analyzer.get_refactor_suggestions()
+        if not suggestions:
+            print('No refactor suggestions found. All files look good!')
+        else:
+            print('Refactor Suggestions:')
+            for s in suggestions:
+                print(f"{s['path']} (lines: {s['total_lines']}, complexity: {s['complexity']}, avg_func_len: {s['function_avg_length']:.1f}, comment_density: {s['comment_density']:.1%}, TODOs: {s['todo_count']})")
+                for reason in s['reasons']:
+                    print(f"  - {reason}")
+        return
+
+    if args.structure_mermaid:
+        mermaid = generate_mermaid_structure(args.directory)
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(mermaid)
+            print(f'Mermaid structure diagram written to {abs_path}')
+        else:
+            print(mermaid)
+        return
+
+    if args.openapi:
+        spec = analyzer.get_openapi_spec()
+        if not spec or not spec.get('paths'):
+            print('No Flask/FastAPI routes found for OpenAPI generation.')
+        else:
+            import json
+            result = json.dumps(spec, indent=2, ensure_ascii=False)
+            if args.output:
+                abs_path = os.path.abspath(args.output)
+                with open(args.output, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                print(f'OpenAPI JSON written to {abs_path}')
+            else:
+                print(result)
+        return
+
+    if args.style_check:
+        issues = analyzer.get_style_issues()
+        if not issues:
+            print('No code style issues found!')
+        else:
+            print('Code Style Issues:')
+            for i in issues:
+                print(f"{i['file']} (line {i['line']}): {i['type']} - {i['desc']}")
+        return
+
+    if args.contributors:
+        stats = analyzer.get_contributor_stats()
+        if not stats:
+            print('No contributor statistics found (not a git repo or no data).')
+        else:
+            print('Contributor Statistics:')
+            print_table(stats, headers=["author", "file_count", "line_count", "commit_count"], title=None)
+        return
+
+    if args.badge:
+        report = analyzer.get_health_report()
+        score = report["score"] if report else 0
+        svg = generate_health_badge(score)
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(svg)
+            print(f'Health badge SVG written to {abs_path}')
+        else:
+            print(svg)
+        return
+
+    if args.security:
+        # Output both basic and advanced security issues
+        issues = analyzer.get_security_issues()
+        adv_issues = analyzer.get_advanced_security_issues()
+        if not issues and not adv_issues:
+            print('No security issues detected.')
+        else:
+            if issues:
+                print('\n[Basic Security Issues]')
+                for i in issues:
+                    print(f"{i['file']} (line {i['line']}): {i['desc']}\n    {i['content']}")
+                    if 'note' in i:
+                        print(f"    Note: {i['note']}")
+            if adv_issues:
+                print('\n[Advanced Security Issues]')
+                for i in adv_issues:
+                    print(f"{i['file']} (line {i['line']}): {i['desc']}\n    {i['content']}")
+                    if 'note' in i:
+                        print(f"    Note: {i['note']}")
         return
 
     # Only show default bar chart if no arguments (just 'codestate')
@@ -341,17 +477,6 @@ def main():
             print(f'Markdown project summary written to {abs_path}')
         else:
             print(summary_md)
-
-    if args.security:
-        issues = analyzer.get_security_issues()
-        if not issues:
-            print('No security issues detected.')
-        else:
-            print('\nSecurity issues detected:')
-            for i in issues:
-                print(f"{i['file']} (line {i['line']}): {i['desc']}\n    {i['content']}")
-                if 'note' in i:
-                    print(f"    Note: {i['note']}")
 
 if __name__ == "__main__":
     main() 

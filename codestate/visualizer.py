@@ -232,4 +232,63 @@ def csv_report(data, headers=None):
     writer.writeheader()
     for row in data:
         writer.writerow({h: row.get(h, '') for h in headers})
-    return output.getvalue() 
+    return output.getvalue()
+
+def generate_mermaid_structure(root_path, max_depth=5):
+    """
+    Generate a Mermaid diagram (flowchart TD) of the directory structure.
+    """
+    lines = ["flowchart TD"]
+    node_id = 0
+    node_map = {}
+    def add_node(parent_id, path, depth):
+        nonlocal node_id
+        if depth > max_depth:
+            return
+        name = os.path.basename(path) or path
+        this_id = f"n{node_id}"
+        node_map[path] = this_id
+        lines.append(f"    {this_id}[\"{name}\"]")
+        if parent_id is not None:
+            lines.append(f"    {parent_id} --> {this_id}")
+        if os.path.isdir(path):
+            try:
+                for entry in sorted(os.listdir(path)):
+                    if entry.startswith('.'):
+                        continue
+                    add_node(this_id, os.path.join(path, entry), depth+1)
+            except Exception:
+                pass
+        node_id += 1
+    add_node(None, root_path, 0)
+    return '\n'.join(lines)
+
+def generate_health_badge(score):
+    """
+    Generate an SVG badge for project health score.
+    """
+    if score >= 90:
+        color = 'brightgreen'
+    elif score >= 75:
+        color = 'yellow'
+    elif score >= 60:
+        color = 'orange'
+    else:
+        color = 'red'
+    svg = f'''
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+  <linearGradient id="b" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <rect rx="3" width="120" height="20" fill="#555"/>
+  <rect rx="3" x="60" width="60" height="20" fill="#{color}"/>
+  <path fill="#{color}" d="M60 0h4v20h-4z"/>
+  <rect rx="3" width="120" height="20" fill="url(#b)"/>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana" font-size="11">
+    <text x="30" y="15">health</text>
+    <text x="90" y="15">{score}/100</text>
+  </g>
+</svg>
+'''
+    return svg 

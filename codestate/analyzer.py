@@ -79,6 +79,12 @@ class Analyzer:
         self._extract_api_doc_summaries()
         self._detect_large_warnings()
         self._analyze_git_hotspots()
+        self._analyze_file_trends()
+        self._analyze_refactor_suggestions()
+        self._analyze_openapi()
+        self._analyze_style_issues()
+        self._analyze_contributor_stats()
+        self._analyze_advanced_security_issues()
         if regex_rules:
             self._check_regex_rules(regex_rules)
         self._generate_health_report()
@@ -561,6 +567,230 @@ class Analyzer:
     def get_api_param_type_stats(self):
         # Return function parameter/type annotation statistics
         return getattr(self, 'api_param_type_stats', {})
+
+    def _analyze_file_trends(self, max_points=20):
+        # For each file, get line count at each commit (limited to max_points per file)
+        git_dir = self.root_dir / '.git'
+        if not git_dir.exists():
+            self.file_trends = None
+            return
+        self.file_trends = {}
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            rel_path = os.path.relpath(path, self.root_dir)
+            try:
+                # Get commit hashes and dates for this file
+                cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%H|%ad', '--date=short', '--', rel_path]
+                output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+                commits = [line.strip().split('|') for line in output.splitlines() if line.strip()]
+                # Limit to latest max_points commits
+                commits = commits[:max_points]
+                trend = []
+                for commit_hash, date in commits:
+                    # Get file content at this commit
+                    show_cmd = ['git', '-C', str(self.root_dir), 'show', f'{commit_hash}:{rel_path}']
+                    try:
+                        content = subprocess.check_output(show_cmd, encoding='utf-8', errors='ignore')
+                        line_count = len(content.splitlines())
+                    except Exception:
+                        line_count = None
+                    trend.append({'commit': commit_hash, 'date': date, 'lines': line_count})
+                self.file_trends[path] = trend
+            except Exception:
+                continue
+
+    def get_file_trend(self, file, max_points=20):
+        # Return line count trend for a file (list of dicts: commit, date, lines)
+        if not hasattr(self, 'file_trends') or self.file_trends is None:
+            return []
+        return self.file_trends.get(file, [])
+
+    def _analyze_refactor_suggestions(self):
+        # Mark files/functions as refactor candidates based on metrics
+        suggestions = []
+        for f in self.file_details:
+            reasons = []
+            if f.get('complexity', 0) > 20:
+                reasons.append('High total complexity')
+            if f.get('function_avg_length', 0) > 100:
+                reasons.append('Long average function length')
+            if f.get('comment_density', 0) < 0.03:
+                reasons.append('Low comment density')
+            if f.get('todo_count', 0) > 5:
+                reasons.append('Many TODO/FIXME')
+            if reasons:
+                suggestions.append({
+                    'path': f['path'],
+                    'ext': f['ext'],
+                    'total_lines': f['total_lines'],
+                    'complexity': f['complexity'],
+                    'function_avg_length': f.get('function_avg_length', 0),
+                    'comment_density': f.get('comment_density', 0),
+                    'todo_count': f.get('todo_count', 0),
+                    'reasons': reasons
+                })
+        self.refactor_suggestions = suggestions
+
+    def get_refactor_suggestions(self):
+        # Return list of refactor suggestion dicts
+        return getattr(self, 'refactor_suggestions', [])
+
+    def _analyze_openapi(self):
+        # Scan for Flask/FastAPI routes and build OpenAPI spec (basic)
+        import ast
+        openapi = {
+            "openapi": "3.0.0",
+            "info": {"title": "Auto API", "version": "1.0.0"},
+            "paths": {}
+        }
+        for file_stat in self.file_details:
+            if file_stat['ext'] != '.py':
+                continue
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                for node in ast.walk(tree):
+                    # Flask: @app.route('/path', methods=['GET',...])
+                    # FastAPI: @app.get('/path'), @app.post('/path')
+                    if isinstance(node, ast.FunctionDef) and node.decorator_list:
+                        for dec in node.decorator_list:
+                            route_path = None
+                            methods = []
+                            if isinstance(dec, ast.Call) and hasattr(dec.func, 'attr'):
+                                # Flask: @app.route
+                                if dec.func.attr == 'route' and dec.args:
+                                    if isinstance(dec.args[0], ast.Str):
+                                        route_path = dec.args[0].s
+                                    # methods kwarg
+                                    for kw in dec.keywords:
+                                        if kw.arg == 'methods' and isinstance(kw.value, ast.List):
+                                            methods = [elt.s for elt in kw.value.elts if isinstance(elt, ast.Str)]
+                                # FastAPI: @app.get/post/put/delete
+                                elif dec.func.attr in ['get', 'post', 'put', 'delete', 'patch'] and dec.args:
+                                    if isinstance(dec.args[0], ast.Str):
+                                        route_path = dec.args[0].s
+                                    methods = [dec.func.attr.upper()]
+                            if route_path:
+                                if not methods:
+                                    methods = ['GET']  # default for Flask
+                                for m in methods:
+                                    if route_path not in openapi['paths']:
+                                        openapi['paths'][route_path] = {}
+                                    openapi['paths'][route_path][m.lower()] = {
+                                        "summary": node.name,
+                                        "description": ast.get_docstring(node) or "",
+                                        "responses": {"200": {"description": "Success"}}
+                                    }
+            except Exception:
+                continue
+        self.openapi_spec = openapi
+
+    def get_openapi_spec(self):
+        # Return OpenAPI 3.0 spec dict
+        return getattr(self, 'openapi_spec', None)
+
+    def _analyze_style_issues(self, max_line_length=120):
+        # Check for indentation, line length, trailing whitespace, missing newline at EOF
+        issues = []
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                for i, line in enumerate(lines):
+                    if '\t' in line:
+                        issues.append({'file': path, 'line': i+1, 'type': 'tab-indent', 'desc': 'Tab character in indentation'})
+                    if len(line.rstrip('\n\r')) > max_line_length:
+                        issues.append({'file': path, 'line': i+1, 'type': 'long-line', 'desc': f'Line exceeds {max_line_length} chars'})
+                    if line.rstrip('\n\r') != line.rstrip():
+                        issues.append({'file': path, 'line': i+1, 'type': 'trailing-whitespace', 'desc': 'Trailing whitespace'})
+                if lines and not lines[-1].endswith('\n'):
+                    issues.append({'file': path, 'line': len(lines), 'type': 'no-eof-newline', 'desc': 'No newline at end of file'})
+            except Exception:
+                continue
+        self.style_issues = issues
+
+    def get_style_issues(self):
+        # Return list of code style issues
+        return getattr(self, 'style_issues', [])
+
+    def _analyze_contributor_stats(self):
+        # For each file, use git log to count lines/commits per author
+        git_dir = self.root_dir / '.git'
+        if not git_dir.exists():
+            self.contributor_stats = None
+            return
+        from collections import Counter, defaultdict
+        author_files = defaultdict(set)
+        author_lines = Counter()
+        author_commits = Counter()
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            rel_path = os.path.relpath(path, self.root_dir)
+            try:
+                # Get all authors for this file
+                cmd = ['git', '-C', str(self.root_dir), 'log', '--format=%an', rel_path]
+                authors = subprocess.check_output(cmd, encoding='utf-8', errors='ignore').splitlines()
+                for a in set(authors):
+                    author_files[a].add(path)
+                for a in authors:
+                    author_commits[a] += 1
+                # Use git blame to count lines per author
+                blame_cmd = ['git', '-C', str(self.root_dir), 'blame', '--line-porcelain', rel_path]
+                blame_out = subprocess.check_output(blame_cmd, encoding='utf-8', errors='ignore')
+                for line in blame_out.splitlines():
+                    if line.startswith('author '):
+                        author = line[7:]
+                        author_lines[author] += 1
+            except Exception:
+                continue
+        stats = []
+        for author in set(list(author_files.keys()) + list(author_lines.keys()) + list(author_commits.keys())):
+            stats.append({
+                'author': author,
+                'file_count': len(author_files[author]),
+                'line_count': author_lines[author],
+                'commit_count': author_commits[author]
+            })
+        self.contributor_stats = stats
+
+    def get_contributor_stats(self):
+        # Return list of contributor stats dicts
+        return getattr(self, 'contributor_stats', [])
+
+    def _analyze_advanced_security_issues(self):
+        # Scan for advanced security issues: SSRF, RCE, SQLi, secrets
+        import re
+        patterns = [
+            (r'requests\.get\s*\(\s*input\(', 'Potential SSRF: requests.get(input())'),
+            (r'os\.system\s*\(', 'Potential RCE: os.system()'),
+            (r'subprocess\.Popen\s*\(', 'Potential RCE: subprocess.Popen()'),
+            (r'\bexec\s*\(', 'Potential RCE: exec()'),
+            (r'\beval\s*\(', 'Potential RCE: eval()'),
+            (r'\bSELECT\b.*\bFROM\b.*\+.*input\(', 'Potential SQLi: dynamic SQL with input()'),
+            (r'aws_secret_access_key\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded AWS secret'),
+            (r'aws_access_key_id\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded AWS key'),
+            (r'AIza[0-9A-Za-z\-_]{35}', 'Hardcoded Google API key'),
+            (r'slack_token\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded Slack token'),
+            (r'github_pat_[0-9a-zA-Z_]{22,255}', 'Hardcoded GitHub token'),
+        ]
+        issues = []
+        for file_stat in self.file_details:
+            path = file_stat['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for lineno, line in enumerate(f, 1):
+                        for pat, desc in patterns:
+                            if re.search(pat, line, re.IGNORECASE):
+                                issues.append({'file': path, 'line': lineno, 'desc': desc, 'content': line.strip(), 'note': 'Potential high-risk security issue'})
+            except Exception:
+                continue
+        self.advanced_security_issues = issues
+
+    def get_advanced_security_issues(self):
+        # Return list of advanced security issues
+        return getattr(self, 'advanced_security_issues', [])
 
     def _iter_files(self, root):
         # Generator that yields files, skipping excluded directories

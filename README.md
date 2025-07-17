@@ -56,7 +56,7 @@ codestate [directory] [options]
 | `--ci`                | CI/CD mode: exit non-zero if major issues found |
 | `--summary`           | Generate a markdown project summary (print or --output) |
 | `--typestats`         | Show function parameter/type annotation statistics (Python) |
-| `--security`          | Scan for common insecure patterns and secrets |
+| `--security`          | Scan for common and advanced security issues (SSRF, RCE, SQLi, secrets, hardcoded credentials, etc.) |
 | `--csv`               | Export summary statistics as CSV |
 | `--details-csv`       | Export per-file details as CSV |
 | `--groupdir-csv`      | Export grouped-by-directory stats as CSV |
@@ -64,6 +64,14 @@ codestate [directory] [options]
 | `--version`           | Show codestate version and exit |
 | `--list-extensions`   | List all file extensions found in the project |
 | `--size`   | Show each file's size in bytes as a table |
+| `--trend`             | Show line count trend for a specific file (provide file path) |
+| `--refactor-suggest`  | Show files/functions that are refactor candidates, with reasons |
+| `--structure-mermaid` | Generate a Mermaid diagram of the project directory structure |
+| `--openapi`           | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
+| `--style-check`       | Check code style: indentation, line length, trailing whitespace, EOF newline |
+| `--multi`             | Analyze multiple root directories (monorepo support) |
+| `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
+| `--badge`             | Generate a health score SVG badge |
 
 ## Examples
 
