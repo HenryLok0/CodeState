@@ -58,7 +58,7 @@ codestate [directory] [options]
 | `--version`           | Show codestate version and exit |
 | `--list-extensions`   | List all file extensions found in the project |
 | `--size`   | Show each file's size in bytes as a table |
-| `--trend`             | Show line count trend for a specific file (**provide file path**) |
+| `--trend`             | Show line count trend for a specific file (__**require output file path**__) |
 | `--refactor-suggest`  | Show files/functions that are refactor candidates, with reasons |
 | `--structure-mermaid` | Generate a Mermaid diagram of the project directory structure |
 | `--openapi`           | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
@@ -66,8 +66,8 @@ codestate [directory] [options]
 | `--multi`             | Analyze multiple root directories (monorepo support) |
 | `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
 | `--contributors-detail`      | Show detail contributor statistics |
-| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) (**require output file path**) |
-| `--badge-sustainability`      | Output SVG sustainability/health badge (**require output file path**) |
+| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) (__**require output file path**__) |
+| `--badge-sustainability`      | Output SVG sustainability/health badge (__**require output file path**__) |
 
 ## Examples
 
