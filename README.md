@@ -69,7 +69,7 @@ codestate [directory] [options]
 | `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
 | `--badge-sustainability`      | Output SVG sustainability/health badge |
 | `--badges`      | Auto-detect and print project language/framework/license/CI badges for README |
-| `--auto-readme`      | Auto-generate a README template based on analysis |
+| `--readme`      | Auto-generate a README template based on analysis |
 | `--autofix-suggest`      | Suggest auto-fix patches for naming, comments, and duplicate code |
 
 ## Examples
