@@ -52,7 +52,7 @@ class Analyzer:
         elif not pathspec and gitignore_path.exists():
             print("[codestate] Warning: pathspec not installed, .gitignore will be ignored. Run 'pip install pathspec' for better results.")
 
-    def analyze(self, regex_rules=None, show_progress=False):
+    def analyze(self, regex_rules=None, show_progress=False, file_callback=None):
         # Recursively scan files and collect statistics (multithreaded, thread-safe aggregation)
         if self.file_types is None:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
@@ -60,7 +60,10 @@ class Analyzer:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
         def analyze_file_safe(file_path):
             try:
-                return self._analyze_file_threadsafe(file_path)
+                result = self._analyze_file_threadsafe(file_path)
+                if file_callback:
+                    file_callback(file_path)
+                return result
             except Exception as e:
                 print(f"Error analyzing {file_path}: {e}")
                 return None
