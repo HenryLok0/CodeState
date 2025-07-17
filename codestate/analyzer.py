@@ -105,7 +105,9 @@ class Analyzer:
         blank_lines = 0
         comment_only_lines = 0
         code_lines = 0
+        size = 0
         try:
+            size = os.path.getsize(file_path)
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     total_lines += 1
@@ -150,7 +152,8 @@ class Analyzer:
             'todo_count': todo_count,
             'blank_lines': blank_lines,
             'comment_only_lines': comment_only_lines,
-            'code_lines': code_lines
+            'code_lines': code_lines,
+            'size': size
         }
         return stat, file_stat
 
@@ -578,4 +581,8 @@ class Analyzer:
 
     def get_max_min_stats(self):
         # Return file with most/least lines
-        return {'max_file': self.max_file, 'min_file': self.min_file} 
+        return {'max_file': self.max_file, 'min_file': self.min_file}
+
+    def get_file_details_with_size(self):
+        # Return per-file statistics including file size
+        return self.file_details 

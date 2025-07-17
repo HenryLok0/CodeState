@@ -174,6 +174,19 @@ def generate_markdown_summary(stats, health_report, hotspots=None):
             lines.append(f"| {path} | {count} |")
     return '\n'.join(lines)
 
+def format_size(num_bytes):
+    """
+    Format file size in bytes to KB/MB/GB as appropriate.
+    """
+    if num_bytes >= 1024**3:
+        return f"{num_bytes / (1024**3):.2f} GB"
+    elif num_bytes >= 1024**2:
+        return f"{num_bytes / (1024**2):.2f} MB"
+    elif num_bytes >= 1024:
+        return f"{num_bytes / 1024:.2f} KB"
+    else:
+        return f"{num_bytes} B"
+
 def print_table(rows, headers=None, title=None):
     """
     Print a list of dicts as a pretty aligned table.
@@ -183,7 +196,17 @@ def print_table(rows, headers=None, title=None):
         return
     if headers is None:
         headers = list(rows[0].keys())
-    col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in rows)) for h in headers]
+    # Format size column if present
+    formatted_rows = []
+    for row in rows:
+        new_row = dict(row)
+        if 'size' in new_row:
+            try:
+                new_row['size'] = format_size(int(new_row['size']))
+            except Exception:
+                pass
+        formatted_rows.append(new_row)
+    col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
     if title:
         print(f"\n{title}")
     # Print header
@@ -191,7 +214,7 @@ def print_table(rows, headers=None, title=None):
     print(header_line)
     print('-+-'.join('-'*w for w in col_widths))
     # Print rows
-    for row in rows:
+    for row in formatted_rows:
         print(' | '.join(str(row.get(h, '')).ljust(w) for h, w in zip(headers, col_widths)))
 
 def csv_report(data, headers=None):

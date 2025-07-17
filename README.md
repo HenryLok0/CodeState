@@ -63,6 +63,7 @@ codestate [directory] [options]
 | `--groupext-csv`      | Export grouped-by-extension stats as CSV |
 | `--version`           | Show codestate version and exit |
 | `--list-extensions`   | List all file extensions found in the project |
+| `--size`   | Show each file's size in bytes as a table |
 
 ## Examples
 

@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--groupext-csv', action='store_true', help='Export grouped-by-extension stats as CSV')
     parser.add_argument('--version', action='store_true', help='Show codestate version and exit')
     parser.add_argument('--list-extensions', action='store_true', help='List all file extensions found in the project')
+    parser.add_argument('--size', action='store_true', help="Show each file's size in bytes as a table")
     args = parser.parse_args()
 
     # Analyze codebase
@@ -103,6 +104,12 @@ def main():
             print(f'JSON report written to {abs_path}')
         else:
             print(result)
+
+    if args.size:
+        file_details = analyzer.get_file_details_with_size()
+        headers = ["path", "ext", "size", "total_lines", "comment_lines", "function_count"]
+        print_table(file_details, headers=headers, title="File Sizes and Stats")
+        return
 
     # Only show default bar chart if no arguments (just 'codestate')
     if len(sys.argv) == 1:
