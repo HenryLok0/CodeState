@@ -525,19 +525,85 @@ def main():
             print(summary_md)
 
     if args.auto_readme:
-        # Collect analysis data and call generate_auto_readme
         from .visualizer import generate_auto_readme, print_ascii_tree
-        # 專案結構（用 ASCII tree）
         import io
-        buf = io.StringIO()
         import contextlib
+        import os
+        # 專案結構
+        buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             print_ascii_tree(args.directory)
         structure = buf.getvalue().strip()
         contributors = analyzer.get_contributor_stats()
         hotspots = analyzer.get_git_hotspots()
         health = analyzer.get_health_report()
-        readme_md = generate_auto_readme(stats, health, contributors, hotspots, structure)
+        # --- badge 偵測（同 --badges）---
+        badges = []
+        exts = set()
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                exts.add(file_path.suffix.lower())
+        lang_map = {
+            '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.java': 'Java', '.go': 'Go', '.rb': 'Ruby', '.php': 'PHP', '.cs': 'C#', '.cpp': 'C++', '.c': 'C', '.rs': 'Rust', '.kt': 'Kotlin', '.swift': 'Swift', '.m': 'Objective-C', '.scala': 'Scala', '.sh': 'Shell', '.pl': 'Perl', '.r': 'R', '.dart': 'Dart', '.jl': 'Julia', '.lua': 'Lua', '.hs': 'Haskell', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML', '.md': 'Markdown'
+        }
+        lang_count = {}
+        for ext in exts:
+            lang = lang_map.get(ext, ext.lstrip('.').capitalize())
+            lang_count[lang] = lang_count.get(lang, 0) + 1
+        main_lang = max(lang_count, key=lang_count.get) if lang_count else 'Unknown'
+        # Detect license
+        license_type = None
+        for lic_file in ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'license', 'license.txt']:
+            lic_path = os.path.join(args.directory, lic_file)
+            if os.path.exists(lic_path):
+                with open(lic_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lic_text = f.read().lower()
+                if 'mit license' in lic_text:
+                    license_type = 'MIT'
+                elif 'apache license' in lic_text:
+                    license_type = 'Apache'
+                elif 'gpl' in lic_text:
+                    license_type = 'GPL'
+                elif 'bsd' in lic_text:
+                    license_type = 'BSD'
+                elif 'mozilla public license' in lic_text:
+                    license_type = 'MPL'
+                else:
+                    license_type = 'Custom'
+                break
+        # Detect GitHub repo
+        github_repo = None
+        git_config_path = os.path.join(args.directory, '.git', 'config')
+        if os.path.exists(git_config_path):
+            with open(git_config_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            url = None
+            for i, line in enumerate(lines):
+                if '[remote "origin"]' in line:
+                    for j in range(i+1, min(i+6, len(lines))):
+                        if 'url =' in lines[j]:
+                            url = lines[j].split('=',1)[1].strip()
+                            break
+                if url:
+                    break
+            if url:
+                import re
+                m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
+                if m:
+                    github_repo = m.group(1)
+        # 組 badge
+        if github_repo:
+            badges.append(f'[![Code Size](https://img.shields.io/github/languages/code-size/{github_repo}?style=flat-square&logo=github)](https://github.com/{github_repo})')
+            badges.append(f'[![Stars](https://img.shields.io/github/stars/{github_repo}?style=flat-square)](https://github.com/{github_repo}/stargazers)')
+        if main_lang != 'Unknown':
+            badges.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
+        if license_type:
+            badges.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
+        # --- end badge 偵測 ---
+        readme_md = generate_auto_readme(
+            stats, health, contributors, hotspots, structure,
+            badges=badges, root_path=args.directory
+        )
         output_path = args.output or 'README.codestate.md'
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(readme_md)

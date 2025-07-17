@@ -385,8 +385,10 @@ def get_project_name_from_git_or_dir(root_path):
         m = re.search(r'url = .*[/:]([^/\\]+/[^/\\]+?)(?:\\.git)?$', text, re.MULTILINE)
         if m:
             repo = m.group(1)
-            # Use repo name only (after last /)
+            # Use repo name only (after last /), and strip .git if present
             name = repo.split('/')[-1]
+            if name.endswith('.git'):
+                name = name[:-4]
             return name
     # fallback: use directory name
     return os.path.basename(os.path.abspath(root_path))
@@ -399,9 +401,9 @@ def generate_auto_readme(stats, health, contributors, hotspots, structure, badge
     lines = []
     project_name = get_project_name_from_git_or_dir(root_path)
     if project_name:
-        lines.append(f'# Project {project_name} CodeState Summary')
+        lines.append(f'# {project_name} Project Summary')
     else:
-        lines.append('# Project CodeState Summary')
+        lines.append('# Project Summary')
     # Insert badges if provided
     if badges:
         lines.append('')
