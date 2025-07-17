@@ -214,7 +214,6 @@ def main():
             print('No contributor statistics found (not a git repo or no data).')
         else:
             print('Contributor Statistics:')
-            from .visualizer import print_table
             print_table(stats, headers=["author", "file_count", "line_count", "commit_count"], title=None)
         return
 
@@ -258,7 +257,6 @@ def main():
                     s['workload_percent'] = '0.0%'
             # Sort by detail workload score
             stats = sorted(stats, key=lambda s: s['_detail_workload_score'], reverse=True)
-            from .visualizer import print_table
             print_table(stats, headers=headers, title=None)
         return
 
