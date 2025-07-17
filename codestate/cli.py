@@ -103,126 +103,129 @@ def main():
             print(f'JSON report written to {abs_path}')
         else:
             print(result)
-    else:
+
+    # Only show default bar chart if no arguments (just 'codestate')
+    if len(sys.argv) == 1:
         ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
         print_comment_density(data, label_key='ext')
-        if args.langdist:
-            ascii_pie_chart(data, value_key='file_count', label_key='ext', title='Language Distribution (by file count)')
-        if args.details:
-            print("\nFile Details:")
-            file_details = analyzer.get_file_details()
-            if file_details:
-                headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
-                print_table(file_details, headers=headers, title=None)
+
+    if args.langdist:
+        ascii_pie_chart(data, value_key='file_count', label_key='ext', title='Language Distribution (by file count)')
+    if args.details:
+        print("\nFile Details:")
+        file_details = analyzer.get_file_details()
+        if file_details:
+            headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+            print_table(file_details, headers=headers, title=None)
+        else:
+            print("No file details available.")
+    if args.dup:
+        dups = analyzer.get_duplicates()
+        print(f"\nDuplicate code blocks (block size >= 5 lines, found {len(dups)} groups):")
+        for group in dups:
+            print("---")
+            for path, line, block in group:
+                print(f"File: {path}, Start line: {line}")
+                print(block)
+    if args.maxmin:
+        mm = analyzer.get_max_min_stats()
+        print("\nFile with most lines:")
+        print(mm['max_file'])
+        print("File with least lines:")
+        print(mm['min_file'])
+    if args.authors:
+        authors = analyzer.get_git_authors()
+        if authors is None:
+            print("No .git directory found or not a git repo.")
+        else:
+            print("\nGit authorship info:")
+            for path, info in authors.items():
+                print(f"{path}: main_author={info['main_author']}, last_author={info['last_author']}")
+    if args.naming:
+        violations = analyzer.get_naming_violations()
+        if not violations:
+            print('All function/class names follow conventions!')
+        else:
+            print('\nNaming convention violations:')
+            for v in violations:
+                print(f"{v['type']} '{v['name']}' in {v['file']} (line {v['line']}): should be {v['rule']}")
+    if args.apidoc:
+        api_docs = analyzer.get_api_doc_summaries()
+        if not api_docs:
+            print('No API docstrings found.')
+        else:
+            print('\nAPI/function/class docstring summaries:')
+            for d in api_docs:
+                print(f"{d['type']} '{d['name']}' in {d['file']} (line {d['line']}):\n{d['docstring']}\n")
+    if args.warnsize is not None:
+        threshold_file = args.warnsize[0] if len(args.warnsize) > 0 else 300
+        threshold_func = args.warnsize[1] if len(args.warnsize) > 1 else 50
+        warnings = analyzer.get_large_warnings(threshold_file, threshold_func)
+        if not warnings['files'] and not warnings['functions']:
+            print(f'No files or functions exceed the thresholds ({threshold_file} lines for files, {threshold_func} for functions).')
+        else:
+            if warnings['files']:
+                print(f'\nLarge files (>{threshold_file} lines):')
+                for w in warnings['files']:
+                    print(f"{w['file']} - {w['lines']} lines")
+            if warnings['functions']:
+                print(f'\nLarge functions (>{threshold_func} lines):')
+                for w in warnings['functions']:
+                    print(f"{w['function']} in {w['file']} (line {w['line']}) - {w['lines']} lines")
+    if regex_rules:
+        matches = analyzer.get_regex_matches()
+        if not matches:
+            print('No matches found for custom regex rules.')
+        else:
+            print('\nCustom regex matches:')
+            for m in matches:
+                print(f"{m['file']} (line {m['line']}): [{m['rule']}] {m['content']}")
+    if args.hotspot:
+        hotspots = analyzer.get_git_hotspots(top_n=10)
+        if not hotspots:
+            print('No git hotspot data found (not a git repo or no commits).')
+        else:
+            print('\nGit Hotspots (most frequently changed files):')
+            for path, count in hotspots:
+                print(f'{path}: {count} commits')
+    if args.health:
+        report = analyzer.get_health_report()
+        if not report:
+            print('No health report available.')
+        else:
+            print(f"\nProject Health Score: {report['score']} / 100")
+            print(f"Average comment density: {report['avg_comment_density']:.2%}")
+            print(f"Average function complexity: {report['avg_complexity']:.2f}")
+            print(f"TODO/FIXME count: {report['todo_count']}")
+            print(f"Naming violations: {report['naming_violations']}")
+            print(f"Duplicate code blocks: {report['duplicate_blocks']}")
+            print(f"Large files: {report['large_files']}")
+            print(f"Large functions: {report['large_functions']}")
+            if report['suggestions']:
+                print("\nSuggestions:")
+                for s in report['suggestions']:
+                    print(f"- {s}")
             else:
-                print("No file details available.")
-        if args.dup:
-            dups = analyzer.get_duplicates()
-            print(f"\nDuplicate code blocks (block size >= 5 lines, found {len(dups)} groups):")
-            for group in dups:
-                print("---")
-                for path, line, block in group:
-                    print(f"File: {path}, Start line: {line}")
-                    print(block)
-        if args.maxmin:
-            mm = analyzer.get_max_min_stats()
-            print("\nFile with most lines:")
-            print(mm['max_file'])
-            print("File with least lines:")
-            print(mm['min_file'])
-        if args.authors:
-            authors = analyzer.get_git_authors()
-            if authors is None:
-                print("No .git directory found or not a git repo.")
-            else:
-                print("\nGit authorship info:")
-                for path, info in authors.items():
-                    print(f"{path}: main_author={info['main_author']}, last_author={info['last_author']}")
-        if args.naming:
-            violations = analyzer.get_naming_violations()
-            if not violations:
-                print('All function/class names follow conventions!')
-            else:
-                print('\nNaming convention violations:')
-                for v in violations:
-                    print(f"{v['type']} '{v['name']}' in {v['file']} (line {v['line']}): should be {v['rule']}")
-        if args.apidoc:
-            api_docs = analyzer.get_api_doc_summaries()
-            if not api_docs:
-                print('No API docstrings found.')
-            else:
-                print('\nAPI/function/class docstring summaries:')
-                for d in api_docs:
-                    print(f"{d['type']} '{d['name']}' in {d['file']} (line {d['line']}):\n{d['docstring']}\n")
-        if args.warnsize is not None:
-            threshold_file = args.warnsize[0] if len(args.warnsize) > 0 else 300
-            threshold_func = args.warnsize[1] if len(args.warnsize) > 1 else 50
-            warnings = analyzer.get_large_warnings(threshold_file, threshold_func)
-            if not warnings['files'] and not warnings['functions']:
-                print(f'No files or functions exceed the thresholds ({threshold_file} lines for files, {threshold_func} for functions).')
-            else:
-                if warnings['files']:
-                    print(f'\nLarge files (>{threshold_file} lines):')
-                    for w in warnings['files']:
-                        print(f"{w['file']} - {w['lines']} lines")
-                if warnings['functions']:
-                    print(f'\nLarge functions (>{threshold_func} lines):')
-                    for w in warnings['functions']:
-                        print(f"{w['function']} in {w['file']} (line {w['line']}) - {w['lines']} lines")
-        if regex_rules:
-            matches = analyzer.get_regex_matches()
-            if not matches:
-                print('No matches found for custom regex rules.')
-            else:
-                print('\nCustom regex matches:')
-                for m in matches:
-                    print(f"{m['file']} (line {m['line']}): [{m['rule']}] {m['content']}")
-        if args.hotspot:
-            hotspots = analyzer.get_git_hotspots(top_n=10)
-            if not hotspots:
-                print('No git hotspot data found (not a git repo or no commits).')
-            else:
-                print('\nGit Hotspots (most frequently changed files):')
-                for path, count in hotspots:
-                    print(f'{path}: {count} commits')
-        if args.health:
-            report = analyzer.get_health_report()
-            if not report:
-                print('No health report available.')
-            else:
-                print(f"\nProject Health Score: {report['score']} / 100")
-                print(f"Average comment density: {report['avg_comment_density']:.2%}")
-                print(f"Average function complexity: {report['avg_complexity']:.2f}")
-                print(f"TODO/FIXME count: {report['todo_count']}")
-                print(f"Naming violations: {report['naming_violations']}")
-                print(f"Duplicate code blocks: {report['duplicate_blocks']}")
-                print(f"Large files: {report['large_files']}")
-                print(f"Large functions: {report['large_functions']}")
-                if report['suggestions']:
-                    print("\nSuggestions:")
-                    for s in report['suggestions']:
-                        print(f"- {s}")
-                else:
-                    print("\nNo major issues detected. Great job!")
-        if args.complexitymap:
-            ascii_complexity_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
-        if args.deadcode:
-            unused = analyzer.get_unused_defs()
-            if not unused:
-                print('No unused (dead) functions/classes found.')
-            else:
-                print('\nUnused (dead) functions/classes:')
-                for d in unused:
-                    print(f"{d['type']} '{d['name']}' in {d['file']} (line {d['line']})")
-        if args.typestats:
-            stats = analyzer.get_api_param_type_stats()
-            print('\nFunction Parameter/Type Annotation Statistics:')
-            print(f"Total functions: {stats.get('total_functions', 0)}")
-            print(f"Total parameters: {stats.get('total_parameters', 0)}")
-            print(f"Annotated parameters: {stats.get('annotated_parameters', 0)}")
-            print(f"Annotated returns: {stats.get('annotated_returns', 0)}")
-            print(f"Parameter annotation coverage: {stats.get('param_annotation_coverage', 0):.2%}")
-            print(f"Return annotation coverage: {stats.get('return_annotation_coverage', 0):.2%}")
+                print("\nNo major issues detected. Great job!")
+    if args.complexitymap:
+        ascii_complexity_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
+    if args.deadcode:
+        unused = analyzer.get_unused_defs()
+        if not unused:
+            print('No unused (dead) functions/classes found.')
+        else:
+            print('\nUnused (dead) functions/classes:')
+            for d in unused:
+                print(f"{d['type']} '{d['name']}' in {d['file']} (line {d['line']})")
+    if args.typestats:
+        stats = analyzer.get_api_param_type_stats()
+        print('\nFunction Parameter/Type Annotation Statistics:')
+        print(f"Total functions: {stats.get('total_functions', 0)}")
+        print(f"Total parameters: {stats.get('total_parameters', 0)}")
+        print(f"Annotated parameters: {stats.get('annotated_parameters', 0)}")
+        print(f"Annotated returns: {stats.get('annotated_returns', 0)}")
+        print(f"Parameter annotation coverage: {stats.get('param_annotation_coverage', 0):.2%}")
+        print(f"Return annotation coverage: {stats.get('return_annotation_coverage', 0):.2%}")
     if args.groupdir:
         grouped = analyzer.get_grouped_stats(by='dir')
         print('\nGrouped statistics by top-level directory:')

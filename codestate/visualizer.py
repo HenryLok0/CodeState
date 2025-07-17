@@ -36,15 +36,18 @@ def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
 
 def print_comment_density(data, label_key='ext'):
     """
-    Print comment density as a percentage bar chart.
+    Print comment density as a percentage bar chart, skip 0% and show comment line count.
     """
     print("\nComment Density:")
     for item in data:
         label = str(item[label_key]).ljust(8)
         density = item.get('comment_density', 0)
+        comment_lines = item.get('comment_lines', 0)
         percent = int(density * 100)
+        if percent == 0:
+            continue  # Skip 0%
         bar = '█' * (percent // 2)
-        print(f"{label} | {bar} {percent}%")
+        print(f"{label} | {bar} {percent}% ({comment_lines} lines)")
 
 def ascii_pie_chart(data, value_key, label_key='ext', title=None):
     """
