@@ -196,18 +196,24 @@ def print_table(rows, headers=None, title=None):
         return
     if headers is None:
         headers = list(rows[0].keys())
-    # If showing contributor stats, sort by commit_count descending and calculate percent
-    if 'commit_count' in headers:
+    # If showing contributor stats, calculate workload_score and percent, sort by workload_score
+    if all(h in headers for h in ['commit_count', 'line_count', 'file_count']):
         try:
-            rows = sorted(rows, key=lambda r: int(r.get('commit_count', 0)), reverse=True)
-            total_commits = sum(int(r.get('commit_count', 0)) for r in rows)
             for r in rows:
-                if total_commits > 0:
-                    r['percent'] = f"{(int(r.get('commit_count', 0)) / total_commits * 100):.1f}%"
+                r['_workload_score'] = (
+                    0.5 * int(r.get('line_count', 0)) +
+                    0.3 * int(r.get('commit_count', 0)) +
+                    0.2 * int(r.get('file_count', 0))
+                )
+            total_score = sum(r['_workload_score'] for r in rows)
+            for r in rows:
+                if total_score > 0:
+                    r['workload_percent'] = f"{(r['_workload_score'] / total_score * 100):.1f}%"
                 else:
-                    r['percent'] = '0.0%'
-            if 'percent' not in headers:
-                headers.append('percent')
+                    r['workload_percent'] = '0.0%'
+            rows = sorted(rows, key=lambda r: r['_workload_score'], reverse=True)
+            if 'workload_percent' not in headers:
+                headers.append('workload_percent')
         except Exception:
             pass  # Fallback: do not sort or add percent if error
     # Format size column if present

@@ -164,7 +164,7 @@ class Analyzer:
         return stat, file_stat
 
     def _scan_security_issues(self):
-        # Scan for common insecure patterns
+        # Scan for common insecure patterns, now also includes cloud DB connection strings
         import re
         patterns = [
             (r'\beval\s*\(', 'Use of eval()'),
@@ -177,6 +177,54 @@ class Analyzer:
             (r'token\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded token'),
             (r'secret\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded secret'),
             (r'api[_-]?key\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded API key'),
+            # Cloud DB connection strings
+            (r'postgres://[^\s]+', 'Potential hardcoded PostgreSQL connection string'),
+            (r'mysql://[^\s]+', 'Potential hardcoded MySQL connection string'),
+            (r'mongodb://[^\s]+', 'Potential hardcoded MongoDB connection string'),
+            (r'sqlserver://[^\s]+', 'Potential hardcoded SQL Server connection string'),
+            (r'jdbc:[^\s]+', 'Potential hardcoded JDBC connection string'),
+            (r'Data Source=[^;]+;Initial Catalog=[^;]+;User ID=[^;]+;Password=[^;]+;', 'Potential hardcoded SQL Server connection string'),
+            (r'AccountEndpoint=https://[^;]+;AccountKey=[^;]+;', 'Potential hardcoded Azure Cosmos DB connection string'),
+            (r'\bServer=([^;]+);Database=([^;]+);Uid=([^;]+);Pwd=([^;]+);', 'Potential hardcoded MySQL connection string'),
+            (r'\bHost=([^;]+);Port=([^;]+);Database=([^;]+);User Id=([^;]+);Password=([^;]+);', 'Potential hardcoded PostgreSQL connection string'),
+            (r'\bcloudsql:[^\s]+', 'Potential hardcoded GCP Cloud SQL connection string'),
+            (r'awsrds:[^\s]+', 'Potential hardcoded AWS RDS connection string'),
+            (r'mssql\+pyodbc://[^\s]+', 'Potential hardcoded MSSQL (pyodbc) connection string'),
+            # More DB and cloud connection strings and secrets
+            (r'oracle://[^\s]+', 'Potential hardcoded Oracle DB connection string'),
+            (r'redshift://[^\s]+', 'Potential hardcoded Redshift connection string'),
+            (r'snowflake://[^\s]+', 'Potential hardcoded Snowflake connection string'),
+            (r'bigquery://[^\s]+', 'Potential hardcoded BigQuery connection string'),
+            (r'firebaseio\.com', 'Potential hardcoded Firebase URL'),
+            (r'cassandra://[^\s]+', 'Potential hardcoded Cassandra connection string'),
+            (r'redis://[^\s]+', 'Potential hardcoded Redis connection string'),
+            (r'elasticsearch://[^\s]+', 'Potential hardcoded Elasticsearch connection string'),
+            (r'clickhouse://[^\s]+', 'Potential hardcoded ClickHouse connection string'),
+            (r'neo4j://[^\s]+', 'Potential hardcoded Neo4j connection string'),
+            (r'dynamodb://[^\s]+', 'Potential hardcoded DynamoDB connection string'),
+            (r'couchbase://[^\s]+', 'Potential hardcoded Couchbase connection string'),
+            (r'memcached://[^\s]+', 'Potential hardcoded Memcached connection string'),
+            (r'ftp://[^\s]+', 'Potential hardcoded FTP connection string'),
+            (r'sftp://[^\s]+', 'Potential hardcoded SFTP connection string'),
+            (r'amqp://[^\s]+', 'Potential hardcoded AMQP/RabbitMQ connection string'),
+            (r'rabbitmq://[^\s]+', 'Potential hardcoded RabbitMQ connection string'),
+            (r'kafka://[^\s]+', 'Potential hardcoded Kafka connection string'),
+            (r'smtp://[^\s]+', 'Potential hardcoded SMTP connection string'),
+            (r'mailgun\.org', 'Potential hardcoded Mailgun domain'),
+            (r'sendgrid\.net', 'Potential hardcoded SendGrid domain'),
+            (r'twilio\.com', 'Potential hardcoded Twilio domain'),
+            (r'stripe\.com', 'Potential hardcoded Stripe domain'),
+            (r'paypal\.com', 'Potential hardcoded Paypal domain'),
+            (r's3://[^\s]+', 'Potential hardcoded S3 bucket URL'),
+            (r'minio://[^\s]+', 'Potential hardcoded MinIO connection string'),
+            (r'azure\.blob\.core\.windows\.net', 'Potential hardcoded Azure Blob Storage URL'),
+            (r'storage\.googleapis\.com', 'Potential hardcoded Google Cloud Storage URL'),
+            (r'AIza[0-9A-Za-z\-_]{35}', 'Potential hardcoded Google API key'),
+            (r'ya29\.[0-9A-Za-z\-_]+', 'Potential hardcoded Google OAuth token'),
+            (r'ghp_[0-9A-Za-z]{36,255}', 'Potential hardcoded GitHub personal access token'),
+            (r'sk_live_[0-9a-zA-Z]{24}', 'Potential hardcoded Stripe live secret key'),
+            (r'live_[0-9a-zA-Z]{32}', 'Potential hardcoded Paypal live key'),
+            (r'eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+', 'Potential hardcoded JWT token'),
         ]
         issues = []
         for file_stat in self.file_details:
@@ -759,7 +807,7 @@ class Analyzer:
         return getattr(self, 'contributor_stats', [])
 
     def _analyze_advanced_security_issues(self):
-        # Scan for advanced security issues: SSRF, RCE, SQLi, secrets
+        # Scan for advanced security issues: SSRF, RCE, SQLi, secrets, and cloud DB connection strings
         import re
         patterns = [
             (r'requests\.get\s*\(\s*input\(', 'Potential SSRF: requests.get(input())'),
@@ -773,6 +821,54 @@ class Analyzer:
             (r'AIza[0-9A-Za-z\-_]{35}', 'Hardcoded Google API key'),
             (r'slack_token\s*=\s*["\"][^"\"]+["\"]', 'Hardcoded Slack token'),
             (r'github_pat_[0-9a-zA-Z_]{22,255}', 'Hardcoded GitHub token'),
+            # Cloud DB connection strings
+            (r'postgres://[^\s]+', 'Potential hardcoded PostgreSQL connection string'),
+            (r'mysql://[^\s]+', 'Potential hardcoded MySQL connection string'),
+            (r'mongodb://[^\s]+', 'Potential hardcoded MongoDB connection string'),
+            (r'sqlserver://[^\s]+', 'Potential hardcoded SQL Server connection string'),
+            (r'jdbc:[^\s]+', 'Potential hardcoded JDBC connection string'),
+            (r'Data Source=[^;]+;Initial Catalog=[^;]+;User ID=[^;]+;Password=[^;]+;', 'Potential hardcoded SQL Server connection string'),
+            (r'AccountEndpoint=https://[^;]+;AccountKey=[^;]+;', 'Potential hardcoded Azure Cosmos DB connection string'),
+            (r'\bServer=([^;]+);Database=([^;]+);Uid=([^;]+);Pwd=([^;]+);', 'Potential hardcoded MySQL connection string'),
+            (r'\bHost=([^;]+);Port=([^;]+);Database=([^;]+);User Id=([^;]+);Password=([^;]+);', 'Potential hardcoded PostgreSQL connection string'),
+            (r'\bcloudsql:[^\s]+', 'Potential hardcoded GCP Cloud SQL connection string'),
+            (r'awsrds:[^\s]+', 'Potential hardcoded AWS RDS connection string'),
+            (r'mssql\+pyodbc://[^\s]+', 'Potential hardcoded MSSQL (pyodbc) connection string'),
+            # More DB and cloud connection strings and secrets
+            (r'oracle://[^\s]+', 'Potential hardcoded Oracle DB connection string'),
+            (r'redshift://[^\s]+', 'Potential hardcoded Redshift connection string'),
+            (r'snowflake://[^\s]+', 'Potential hardcoded Snowflake connection string'),
+            (r'bigquery://[^\s]+', 'Potential hardcoded BigQuery connection string'),
+            (r'firebaseio\.com', 'Potential hardcoded Firebase URL'),
+            (r'cassandra://[^\s]+', 'Potential hardcoded Cassandra connection string'),
+            (r'redis://[^\s]+', 'Potential hardcoded Redis connection string'),
+            (r'elasticsearch://[^\s]+', 'Potential hardcoded Elasticsearch connection string'),
+            (r'clickhouse://[^\s]+', 'Potential hardcoded ClickHouse connection string'),
+            (r'neo4j://[^\s]+', 'Potential hardcoded Neo4j connection string'),
+            (r'dynamodb://[^\s]+', 'Potential hardcoded DynamoDB connection string'),
+            (r'couchbase://[^\s]+', 'Potential hardcoded Couchbase connection string'),
+            (r'memcached://[^\s]+', 'Potential hardcoded Memcached connection string'),
+            (r'ftp://[^\s]+', 'Potential hardcoded FTP connection string'),
+            (r'sftp://[^\s]+', 'Potential hardcoded SFTP connection string'),
+            (r'amqp://[^\s]+', 'Potential hardcoded AMQP/RabbitMQ connection string'),
+            (r'rabbitmq://[^\s]+', 'Potential hardcoded RabbitMQ connection string'),
+            (r'kafka://[^\s]+', 'Potential hardcoded Kafka connection string'),
+            (r'smtp://[^\s]+', 'Potential hardcoded SMTP connection string'),
+            (r'mailgun\.org', 'Potential hardcoded Mailgun domain'),
+            (r'sendgrid\.net', 'Potential hardcoded SendGrid domain'),
+            (r'twilio\.com', 'Potential hardcoded Twilio domain'),
+            (r'stripe\.com', 'Potential hardcoded Stripe domain'),
+            (r'paypal\.com', 'Potential hardcoded Paypal domain'),
+            (r's3://[^\s]+', 'Potential hardcoded S3 bucket URL'),
+            (r'minio://[^\s]+', 'Potential hardcoded MinIO connection string'),
+            (r'azure\.blob\.core\.windows\.net', 'Potential hardcoded Azure Blob Storage URL'),
+            (r'storage\.googleapis\.com', 'Potential hardcoded Google Cloud Storage URL'),
+            (r'AIza[0-9A-Za-z\-_]{35}', 'Potential hardcoded Google API key'),
+            (r'ya29\.[0-9A-Za-z\-_]+', 'Potential hardcoded Google OAuth token'),
+            (r'ghp_[0-9A-Za-z]{36,255}', 'Potential hardcoded GitHub personal access token'),
+            (r'sk_live_[0-9a-zA-Z]{24}', 'Potential hardcoded Stripe live secret key'),
+            (r'live_[0-9a-zA-Z]{32}', 'Potential hardcoded Paypal live key'),
+            (r'eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+', 'Potential hardcoded JWT token'),
         ]
         issues = []
         for file_stat in self.file_details:
