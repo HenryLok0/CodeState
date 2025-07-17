@@ -3,6 +3,7 @@ import pathlib
 import re
 from collections import defaultdict
 import concurrent.futures
+from concurrent.futures import as_completed
 import hashlib
 import subprocess
 import ast
@@ -61,21 +62,20 @@ class Analyzer:
         def analyze_file_safe(file_path):
             try:
                 result = self._analyze_file_threadsafe(file_path)
-                if file_callback:
-                    file_callback(file_path)
-                return result
+                return (file_path, result)
             except Exception as e:
                 print(f"Error analyzing {file_path}: {e}")
-                return None
+                return (file_path, None)
         results = []
-        # Show progress bar when analyzing files (only if tqdm is available and show_progress is True)
+        # Use submit + as_completed for smooth progress bar
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            file_iter = executor.map(analyze_file_safe, files)
-            if show_progress and tqdm is not None:
-                file_iter = tqdm(file_iter, total=len(files), desc="Analyzing files")
-            for res in file_iter:
+            futures = [executor.submit(analyze_file_safe, file_path) for file_path in files]
+            for future in as_completed(futures):
+                file_path, res = future.result()
                 if res:
                     results.append(res)
+                if file_callback:
+                    file_callback(file_path)
         # Aggregate results
         self.stats = defaultdict(lambda: {
             'file_count': 0,
