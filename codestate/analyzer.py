@@ -845,6 +845,21 @@ class Analyzer:
             max_file = max(author_file_lines[author].items(), key=lambda x: x[1], default=(None, 0))
             max_file_lines = max_file[1]
             active_days_last_30 = len(author_active_days[author])
+            # Simple workload score (line_count 0.5, commit_count 0.3, file_count 0.2)
+            simple_workload_score = (
+                0.5 * author_lines[author] +
+                0.3 * total_commits +
+                0.2 * len(author_files[author])
+            )
+            # Detail workload score (multi-field weighted)
+            detail_workload_score = (
+                0.25 * author_lines[author] +
+                0.25 * total_commits +
+                0.20 * total_added +
+                0.15 * total_deleted +
+                0.05 * active_days_last_30 +
+                0.10 * max_file_lines
+            )
             stats.append({
                 'author': author,
                 'file_count': len(author_files[author]),
@@ -857,7 +872,9 @@ class Analyzer:
                 'max_file_lines': max_file_lines,
                 'active_days_last_30': active_days_last_30,
                 'added_lines': total_added,
-                'deleted_lines': total_deleted
+                'deleted_lines': total_deleted,
+                'simple_workload_score': simple_workload_score,
+                'detail_workload_score': detail_workload_score
             })
         self.contributor_stats = stats
 
