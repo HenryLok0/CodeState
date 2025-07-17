@@ -796,7 +796,7 @@ class Analyzer:
         # Return OpenAPI 3.0 spec dict
         return getattr(self, 'openapi_spec', None)
 
-    def _analyze_style_issues(self, max_line_length=120):
+    def _analyze_style_issues(self, max_line_length=150):
         # Check for indentation, line length, trailing whitespace, missing newline at EOF
         issues = []
         for file_stat in self.file_details:
