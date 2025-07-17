@@ -6,10 +6,16 @@ import concurrent.futures
 import hashlib
 import subprocess
 import ast
+# Add pathspec for .gitignore support
+try:
+    import pathspec
+except ImportError:
+    pathspec = None
 
 class Analyzer:
     """
     Analyzer for code statistics: lines of code, comment density, function complexity.
+    Now supports .gitignore exclusion via pathspec.
     """
     def __init__(self, root_dir, file_types=None, exclude_dirs=None):
         # root_dir: the directory to analyze
@@ -31,6 +37,15 @@ class Analyzer:
         })
         self.file_details = []  # List of per-file stats
         self.duplicates = []  # List of duplicate code info
+        # Load .gitignore if present
+        self.gitignore_spec = None
+        gitignore_path = self.root_dir / '.gitignore'
+        if pathspec and gitignore_path.exists():
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
+                patterns = f.read().splitlines()
+            self.gitignore_spec = pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+        elif not pathspec and gitignore_path.exists():
+            print("[codestate] Warning: pathspec not installed, .gitignore will be ignored. Run 'pip install pathspec' for better results.")
 
     def analyze(self, regex_rules=None):
         # Recursively scan files and collect statistics (multithreaded, thread-safe aggregation)
@@ -996,12 +1011,17 @@ class Analyzer:
         return getattr(self, 'advanced_security_issues', [])
 
     def _iter_files(self, root):
-        # Generator that yields files, skipping excluded directories
+        # Generator that yields files, skipping excluded directories and .gitignore rules
         for dirpath, dirnames, filenames in os.walk(root):
             # Remove excluded directories in-place
             dirnames[:] = [d for d in dirnames if d not in self.exclude_dirs]
             for filename in filenames:
-                yield pathlib.Path(dirpath) / filename
+                file_path = pathlib.Path(dirpath) / filename
+                rel_path = os.path.relpath(file_path, self.root_dir)
+                # Skip files matched by .gitignore
+                if self.gitignore_spec and self.gitignore_spec.match_file(rel_path):
+                    continue
+                yield file_path
 
     def _estimate_complexity(self, line):
         # Simple cyclomatic complexity estimation: count keywords
