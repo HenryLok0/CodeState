@@ -324,8 +324,7 @@ def generate_lang_card_svg(data, output_path, top_n=8):
         svg.append(f'<rect class="bar-bg" x="120" y="{y-16}" width="{bar_max_width}" height="20" rx="6"/>')
         svg.append(f'<rect class="bar" x="120" y="{y-16}" width="{bar_width}" height="20" fill="{color}" rx="6"/>')
         svg.append(f'<text x="32" y="{y}" class="lang">{item["ext"]}</text>')
-        svg.append(f'<text x="120" y="{y+1}" class="count" alignment-baseline="middle">{item["total_lines"]} lines</text>')
-        svg.append(f'<text x="{120+bar_max_width+12}" y="{y+1}" class="percent" alignment-baseline="middle">{percent:.1f}%</text>')
+        svg.append(f'<text x="{120+bar_max_width+24}" y="{y+1}" class="percent" alignment-baseline="middle">{percent:.1f}%</text>')
     svg.append('</svg>')
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(svg))
@@ -334,37 +333,39 @@ def generate_lang_card_svg(data, output_path, top_n=8):
 def generate_sustainability_badge_svg(score, output_path, label="Sustainability"):
     """
     Generate a modern SVG badge for sustainability/health score.
-    score: int (0-100)
-    output_path: SVG file path to write
-    label: badge label
+    Improved: better color, contrast, font, shadow, and gradient.
     """
     # Color by score (green/yellow/orange/red)
     if score >= 90:
         color = '#43A047'  # Green
+        grad = '#66BB6A'
     elif score >= 75:
         color = '#FBC02D'  # Yellow
+        grad = '#FFD54F'
     elif score >= 60:
-        color = '#FB8C00'  # Orange
+        color = '#FFA726'  # Orange (brighter)
+        grad = '#FFCC80'
     else:
         color = '#D32F2F'  # Red
+        grad = '#E57373'
     width = 180
     height = 36
     label_w = 110
     value_w = width - label_w
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        '<defs>\n',
-        '  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">',
-        '    <stop offset="0%" stop-color="#fff" stop-opacity="0.8"/>',
-        '    <stop offset="100%" stop-color="#fff" stop-opacity="0.5"/>',
-        '  </linearGradient>',
+        '<defs>',
+        f'  <linearGradient id="score_grad" x1="0" y1="0" x2="0" y2="1">',
+        f'    <stop offset="0%" stop-color="{grad}" stop-opacity="1"/>',
+        f'    <stop offset="100%" stop-color="{color}" stop-opacity="1"/>',
+        f'  </linearGradient>',
         '</defs>',
-        f'<g filter="url(#shadow)">',
+        f'<g>',
+        f'  <rect x="0" y="0" width="{width}" height="{height}" rx="12" fill="#fff" opacity="0"/>',
         f'  <rect x="0" y="0" width="{label_w}" height="{height}" rx="12" fill="#555"/>',
-        f'  <rect x="{label_w}" y="0" width="{value_w}" height="{height}" rx="12" fill="{color}"/>',
-        f'  <rect x="0" y="0" width="{width}" height="{height}" rx="12" fill="url(#g)"/>',
-        f'  <text x="{label_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="600" fill="#fff">{label}</text>',
-        f'  <text x="{label_w+value_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">{score} / 100</text>',
+        f'  <rect x="{label_w}" y="0" width="{value_w}" height="{height}" rx="12" fill="url(#score_grad)"/>',
+        f'  <text x="{label_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">{label}</text>',
+        f'  <text x="{label_w+value_w//2}" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="16" font-weight="bold" fill="#fff">{score} / 100</text>',
         '</g>',
         '</svg>'
     ]
