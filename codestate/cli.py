@@ -303,13 +303,13 @@ def main():
         sys.exit(0)
     if args.list_extensions:
         import sys
-        exts = set()
+        exts = {}
         for file_path in analyzer._iter_files(args.directory):
             if file_path.suffix:
-                exts.add(file_path.suffix)
+                exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
         print('File extensions found in project:')
-        for ext in sorted(exts):
-            print(ext)
+        for ext, count in sorted(exts.items()):
+            print(f'{ext} ({count})')
         sys.exit(0)
 
     if args.html:
