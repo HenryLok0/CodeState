@@ -135,20 +135,30 @@ def main():
                 )
                 elapsed = time.time() - start_time
                 left = total - idx
+                avg_time = elapsed / idx if idx > 0 else 0
+                est_left = avg_time * left
+                bar_len = 20
+                progress = int(bar_len * idx / total)
+                bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"[FAIL] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed")
+                    print(f"{bar} [FAIL] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
                     print(result.stderr)
                 else:
                     success_count += 1
-                    print(f"[OK]   {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed")
+                    print(f"{bar} [OK]   {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
             except Exception as e:
                 any_error = True
                 fail_count += 1
                 elapsed = time.time() - start_time
                 left = total - idx
-                print(f"[EXCEPTION] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed: {e}")
+                avg_time = elapsed / idx if idx > 0 else 0
+                est_left = avg_time * left
+                bar_len = 20
+                progress = int(bar_len * idx / total)
+                bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                print(f"{bar} [EXCEPTION] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
