@@ -207,6 +207,7 @@ def main():
 
     # 檔案分析完畢，進行輸出步驟
     if args.tree:
+        from .visualizer import print_ascii_tree
         print('Project structure:')
         print_ascii_tree(args.directory)
     if args.badges:
@@ -236,6 +237,7 @@ def main():
         sys.exit(0)
 
     if args.tree:
+        from .visualizer import print_ascii_tree
         print('Project structure:')
         print_ascii_tree(args.directory)
 
@@ -268,12 +270,16 @@ def main():
             print(result)
 
     if args.size:
+        from .visualizer import print_table
         file_details = analyzer.get_file_details_with_size()
         headers = ["path", "ext", "size", "total_lines", "comment_lines", "function_count"]
         print_table(file_details, headers=headers, title="File Sizes and Stats")
         return
 
     if args.trend:
+        if not args.trend:
+            print('Error: --trend requires a file path argument.')
+            return
         trend = analyzer.get_file_trend(args.trend)
         if not trend:
             print(f'No trend data found for {args.trend}.')
@@ -336,6 +342,7 @@ def main():
         return
 
     if args.contributors:
+        from .visualizer import print_table
         stats = analyzer.get_contributor_stats()
         if not stats:
             print('No contributor statistics found (not a git repo or no data).')
@@ -345,20 +352,18 @@ def main():
         return
 
     if args.contributors_detail:
+        from .visualizer import print_table
         stats = analyzer.get_contributor_stats()
         if not stats:
             print('No contributor statistics found (not a git repo or no data).')
         else:
             print('Contributor Detailed Statistics:')
-            # Dynamically get all keys for headers
             all_keys = set()
             for s in stats:
                 all_keys.update(s.keys())
             headers = list(all_keys)
-            # Sort common fields first
             preferred = ['author','file_count','line_count','commit_count','workload_percent','first_commit','last_commit','avg_lines_per_commit','main_exts','max_file_lines','active_days_last_30','added_lines','deleted_lines']
             headers = preferred + [k for k in headers if k not in preferred]
-            # Calculate weighted workload_percent using custom weights
             weights = {
                 'line_count': 0.25,
                 'commit_count': 0.20,
@@ -382,7 +387,6 @@ def main():
                     s['workload_percent'] = f"{(s['_detail_workload_score']/total_score*100):.1f}%"
                 else:
                     s['workload_percent'] = '0.0%'
-            # Sort by detail workload score
             stats = sorted(stats, key=lambda s: s['_detail_workload_score'], reverse=True)
             print_table(stats, headers=headers, title=None)
         return
@@ -425,10 +429,12 @@ def main():
                 print(block)
     if args.maxmin:
         mm = analyzer.get_max_min_stats()
+        from .visualizer import print_table
         print("\nFile with most lines:")
-        print(mm['max_file'])
+        print_table([mm['max_file']], title="Max File")
         print("File with least lines:")
-        print(mm['min_file'])
+        print_table([mm['min_file']], title="Min File")
+        return
     if args.authors:
         authors = analyzer.get_git_authors()
         if authors is None:
@@ -769,6 +775,7 @@ def main():
         return
 
     if args.badges:
+        import os
         # Auto-detect language
         exts = set()
         for file_path in analyzer._iter_files(args.directory):
@@ -782,7 +789,6 @@ def main():
             lang = lang_map.get(ext, ext.lstrip('.').capitalize())
             lang_count[lang] = lang_count.get(lang, 0) + 1
         main_lang = max(lang_count, key=lang_count.get) if lang_count else 'Unknown'
-        # Detect framework (simple: look for requirements.txt, package.json, etc.)
         framework = None
         req_path = os.path.join(args.directory, 'requirements.txt')
         if os.path.exists(req_path):
@@ -810,7 +816,6 @@ def main():
                 framework = 'Next.js'
             elif 'nuxt' in deps:
                 framework = 'Nuxt.js'
-        # Detect license
         license_type = None
         for lic_file in ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'license', 'license.txt']:
             lic_path = os.path.join(args.directory, lic_file)
@@ -830,12 +835,10 @@ def main():
                 else:
                     license_type = 'Custom'
                 break
-        # Detect CI (GitHub Actions)
         ci = None
         gha_path = os.path.join(args.directory, '.github', 'workflows')
         if os.path.isdir(gha_path) and any(f.endswith('.yml') or f.endswith('.yaml') for f in os.listdir(gha_path)):
             ci = 'GitHub Actions'
-        # Detect GitHub repo for code size/stars badges
         github_repo = None
         git_config_path = os.path.join(args.directory, '.git', 'config')
         if os.path.exists(git_config_path):
@@ -851,12 +854,10 @@ def main():
                 if url:
                     break
             if url:
-                # 支援 git@github.com:username/repo.git 或 https://github.com/username/repo.git
                 import re
                 m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
                 if m:
                     github_repo = m.group(1)
-        # Print badges
         print('\nRecommended README badges:')
         badge_md = []
         if github_repo:
