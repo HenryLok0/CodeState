@@ -1025,9 +1025,10 @@ def main():
         print_table(filtered, headers=headers, title=f'Files with total_lines >= {args.min_lines}:')
         return
     if args.open:
-        # 單檔案詳細分析
+        # 單檔案詳細分析，支援檔名模糊比對
         file_path = args.open
-        file_stat = next((f for f in file_details if f['path'] == file_path or f['path'].endswith(file_path)), None)
+        import os
+        file_stat = next((f for f in file_details if f['path'] == file_path or f['path'].endswith(file_path) or os.path.basename(f['path']) == os.path.basename(file_path)), None)
         if not file_stat:
             print(f"[codestate] File not found in analysis: {file_path}")
             return
@@ -1036,13 +1037,25 @@ def main():
         print_table([file_stat], headers=headers, title=f'Detailed analysis for {file_path}:')
         return
     if args.compare:
-        # 比較兩個資料夾的統計
+        # 比較兩個資料夾的統計，支援資料夾名稱模糊比對
         from .visualizer import print_table
+        import os
         dir1, dir2 = args.compare
-        print(f"Comparing statistics between {dir1} and {dir2} ...")
-        analyzer1 = Analyzer(dir1)
+        # 在當前目錄下尋找名稱相符的資料夾
+        def find_dir(name):
+            if os.path.isdir(name):
+                return name
+            for root, dirs, _ in os.walk('.'):
+                for d in dirs:
+                    if d == name:
+                        return os.path.join(root, d)
+            return name  # fallback
+        dir1_path = find_dir(dir1)
+        dir2_path = find_dir(dir2)
+        print(f"Comparing statistics between {dir1_path} and {dir2_path} ...")
+        analyzer1 = Analyzer(dir1_path)
         stats1 = analyzer1.analyze()
-        analyzer2 = Analyzer(dir2)
+        analyzer2 = Analyzer(dir2_path)
         stats2 = analyzer2.analyze()
         # 取所有出現過的副檔名
         all_exts = set(stats1.keys()) | set(stats2.keys())
@@ -1071,20 +1084,24 @@ def main():
                    f'{dir1} total_lines', f'{dir2} total_lines', 'total_lines Δ',
                    f'{dir1} comment_lines', f'{dir2} comment_lines', 'comment_lines Δ',
                    f'{dir1} function_count', f'{dir2} function_count', 'function_count Δ']
-        print_table(rows, headers=headers, title=f'Comparison: {dir1} vs {dir2}')
+        print_table(rows, headers=headers, title=f'Comparison: {dir1_path} vs {dir2_path}')
         return
     if args.blame:
-        # 顯示 git blame 統計
+        # 顯示 git blame 統計，支援檔名模糊比對
         import subprocess
         from collections import Counter
+        import os
         file_path = args.blame
+        # 在 file_details 找到第一個檔名相符的檔案
+        match = next((f for f in file_details if f['path'] == file_path or f['path'].endswith(file_path) or os.path.basename(f['path']) == os.path.basename(file_path)), None)
+        blame_target = match['path'] if match else file_path
         try:
-            cmd = ['git', 'blame', '--line-porcelain', file_path]
+            cmd = ['git', 'blame', '--line-porcelain', blame_target]
             out = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
             authors = [line[7:] for line in out.splitlines() if line.startswith('author ')]
             counter = Counter(authors)
             total = sum(counter.values())
-            print(f'Git blame statistics for {file_path}:')
+            print(f'Git blame statistics for {blame_target}:')
             print('Author           | Lines | Percent')
             print('-----------------+-------+--------')
             for author, count in counter.most_common():
