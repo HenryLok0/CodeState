@@ -281,10 +281,11 @@ def main():
         data.append(item)
 
     if args.version:
+        import sys
         print(f'codestate version {__version__}')
         sys.exit(0)
     if args.list_extensions:
-        # Scan all files and print unique extensions
+        import sys
         exts = set()
         for file_path in analyzer._iter_files(args.directory):
             if file_path.suffix:
@@ -651,6 +652,7 @@ def main():
             print(csv_str)
 
     if args.ci:
+        import sys
         # Criteria: health score < 80, or any naming violations, large files/functions, or dead code
         report = analyzer.get_health_report()
         naming_violations = analyzer.get_naming_violations()
