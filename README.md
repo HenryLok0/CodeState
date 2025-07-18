@@ -37,12 +37,14 @@ codestate [directory] [options]
 | `--size`               | Show each file's size in bytes as a table |
 | `--list-extensions`    | List all file extensions found in the project |
 | `--min-lines <N>`      | Only show files with total lines >= N |
+| `--find <keyword/regex>` | Find all lines matching a keyword or regex in the codebase |
 | **[Statistics & Detailed Analysis]** |             |
 | `--details`            | Show detailed statistics for each file |
 | `--dup`                | Show duplicate code blocks (5+ lines) |
 | `--maxmin`             | Show file with most/least lines |
 | `--langdist`           | Show language (file extension) distribution as ASCII pie chart |
 | `--complexitymap`      | Show ASCII heatmap of file complexity |
+| `--complexity-graph`   | Show an ASCII bar chart of file complexity |
 | `--warnsize`           | Warn for large files/functions (optionally specify file and function line thresholds, default 300/50) |
 | `--naming`             | Check function/class naming conventions (PEP8, PascalCase) |
 | `--apidoc`             | Show API/function/class docstring summaries |
@@ -51,6 +53,7 @@ codestate [directory] [options]
 | `--trend`              | Show line count trend for a specific file |
 | `--refactor-suggest`   | Show files/functions that are refactor candidates, with reasons |
 | `--autofix-suggest`    | Suggest auto-fix patches for naming, comments, and duplicate code |
+| `--refactor-map`         | Show a table of files/functions that are refactor candidates |
 | `--complexity-threshold <value>` | Set custom complexity threshold for warnings (**requires a value**, e.g. --complexity-threshold 5) |
 | `--open <file>`        | Show detailed analysis for a single file |
 | `--blame <file>`       | Show git blame statistics for a file |
@@ -64,6 +67,7 @@ codestate [directory] [options]
 | `--details-csv`        | Export per-file details as CSV |
 | `--groupdir-csv`       | Export grouped-by-directory stats as CSV |
 | `--groupext-csv`       | Export grouped-by-extension stats as CSV |
+| `--test-coverage <coverage.xml>` | Show test coverage analysis from a coverage.xml file |
 | `--output`, `-o`       | Output file for HTML/Markdown/JSON/CSV/Excel export |
 | `--report-issues`       | Export all detected issues (naming, size, complexity, etc.) as a markdown or JSON report |
 | **[Project Structure & Health]** |             |
@@ -88,6 +92,10 @@ codestate [directory] [options]
 | `--openapi`            | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
 | `--multi <dir1> [dir2 ...]`      | Analyze multiple root directories (monorepo support, **requires at least one directory**) |
 | `--version`            | Show codestate version and exit |
+
+
+
+
 
 ## Examples
 

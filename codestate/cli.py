@@ -74,6 +74,10 @@ def main():
     parser.add_argument('--blame', type=str, help='Show git blame statistics for a file')
     parser.add_argument('--churn', type=int, nargs='?', const=30, help='Show most changed files in the last N days (default 30)')
     parser.add_argument('--report-issues', action='store_true', help='Export all detected issues (naming, size, complexity, etc.) as a markdown or JSON report')
+    parser.add_argument('--find', type=str, help='Find all lines matching a keyword or regex in the codebase')
+    parser.add_argument('--complexity-graph', action='store_true', help='Show an interactive complexity graph (feature)')
+    parser.add_argument('--refactor-map', action='store_true', help='Show a map of files/functions that are refactor candidates')
+    parser.add_argument('--test-coverage', type=str, help='Show test coverage analysis from a coverage.xml file')
     args = parser.parse_args()
 
     # --test 隱藏自動測試分支
@@ -123,6 +127,10 @@ def main():
             ['--compare', 'codestate', 'tests'],
             ['--churn', '30'],
             ['--report-issues'],
+            ['--find', 'TODO'],
+            ['--test-coverage', 'coverage.xml'],
+            ['--complexity-graph'],
+            ['--refactor-map'],
         ]
         any_error = False
         success_count = 0
@@ -139,31 +147,33 @@ def main():
                     text=True
                 )
                 elapsed = time.time() - start_time
-                left = total - idx
+                percent_done = int(idx / total * 100)
                 avg_time = elapsed / idx if idx > 0 else 0
-                est_left = avg_time * left
+                est_left = avg_time * (total - idx)
                 bar_len = 20
                 progress = int(bar_len * idx / total)
                 bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                progress_str = f"{idx}/{total}({percent_done}%)"
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"{bar} [FAIL] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
+                    print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
                     print(result.stderr)
                 else:
                     success_count += 1
-                    print(f"{bar} [OK]   {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
+                    print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
             except Exception as e:
                 any_error = True
                 fail_count += 1
                 elapsed = time.time() - start_time
-                left = total - idx
+                percent_done = int(idx / total * 100)
                 avg_time = elapsed / idx if idx > 0 else 0
-                est_left = avg_time * left
+                est_left = avg_time * (total - idx)
                 bar_len = 20
                 progress = int(bar_len * idx / total)
                 bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
-                print(f"{bar} [EXCEPTION] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed | est {est_left:.1f}s left: {e}")
+                progress_str = f"{idx}/{total}({percent_done}%)"
+                print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
@@ -1202,6 +1212,71 @@ def main():
             print('\n'.join(issues))
         else:
             print('No major issues detected!')
+        return
+
+    if args.find:
+        # 實作 find: 搜尋所有程式碼檔案，列出符合關鍵字或正則的行
+        import re
+        matches = []
+        pattern = re.compile(args.find)
+        for f in file_details:
+            path = f['path']
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as fp:
+                    for lineno, line in enumerate(fp, 1):
+                        if pattern.search(line):
+                            matches.append({'file': path, 'line': lineno, 'content': line.strip()})
+            except Exception:
+                continue
+        if matches:
+            from .visualizer import print_table
+            print_table(matches, headers=['file', 'line', 'content'], title=f"Lines matching '{args.find}':")
+        else:
+            print(f"No matches found for '{args.find}'.")
+        return
+    if args.complexity_graph:
+        # 實作 complexity-graph: 用 ASCII bar chart 顯示所有檔案複雜度
+        from .visualizer import ascii_bar_chart
+        file_cplx = [
+            {'file': f['path'], 'complexity': f.get('complexity', 0)}
+            for f in file_details if f.get('complexity', 0) > 0
+        ]
+        if file_cplx:
+            ascii_bar_chart(file_cplx, value_key='complexity', label_key='file', width=40, title='File Complexity Graph')
+        else:
+            print('No complexity data to display.')
+        return
+    if args.refactor_map:
+        # 實作 refactor-map: 列出 refactor 建議
+        suggestions = analyzer.get_refactor_suggestions()
+        if suggestions:
+            from .visualizer import print_table
+            print_table(suggestions, headers=['path', 'ext', 'total_lines', 'complexity', 'function_avg_length', 'comment_density', 'todo_count', 'reasons'], title='Refactor Candidates')
+        else:
+            print('No refactor candidates found.')
+        return
+    if args.test_coverage:
+        # 實作 test-coverage: 解析 coverage.xml，顯示每個檔案的覆蓋率
+        import xml.etree.ElementTree as ET
+        coverage_path = args.test_coverage
+        try:
+            tree = ET.parse(coverage_path)
+            root = tree.getroot()
+            files = []
+            for cls in root.findall('.//class'):
+                filename = cls.attrib.get('filename')
+                lines = cls.findall('./lines/line')
+                total = len(lines)
+                covered = sum(1 for l in lines if l.attrib.get('hits', '0') != '0')
+                percent = (covered / total * 100) if total else 0
+                files.append({'file': filename, 'covered': covered, 'total': total, 'coverage': f'{percent:.1f}%'})
+            if files:
+                from .visualizer import print_table
+                print_table(files, headers=['file', 'covered', 'total', 'coverage'], title=f'Test Coverage from {coverage_path}')
+            else:
+                print('No coverage data found in file.')
+        except Exception as e:
+            print(f'[codestate] Failed to parse coverage file: {e}')
         return
 
 if __name__ == "__main__":
