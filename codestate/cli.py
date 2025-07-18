@@ -879,5 +879,18 @@ def main():
             print('No badges detected.')
         return
 
+    # fallback: if data has content and no other output options, print table
+    if data and not any([
+        args.details, args.html, args.csv, args.excel, args.top, args.failures_only, args.file_age, args.uncommitted,
+        args.md, args.json, args.size, args.trend, args.refactor_suggest, args.structure_mermaid, args.openapi,
+        args.style_check, args.contributors, args.contributors_detail, args.security, args.groupdir, args.groupext,
+        args.groupdir_csv, args.groupext_csv, args.ci, args.summary, args.readme, args.autofix_suggest, args.lang_card_svg,
+        args.badge_sustainability, args.badges, args.naming, args.apidoc, args.dup, args.maxmin, args.authors, args.langdist,
+        args.complexitymap, args.deadcode, args.typestats, args.multi
+    ]):
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        from .visualizer import print_table
+        print_table(data, headers=headers, title='File List:')
+
 if __name__ == "__main__":
     main() 

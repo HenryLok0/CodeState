@@ -121,8 +121,9 @@ def html_report(data, title='Code Statistics'):
     if data:
         headers = data[0].keys()
         html.append('<tr>' + ''.join(f'<th>{h}</th>' for h in headers) + '</tr>')
+        avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
         for item in data:
-            html.append('<tr>' + ''.join(f'<td>{item[h]}</td>' for h in headers) + '</tr>')
+            html.append('<tr>' + ''.join(f'<td>{f"{item[h]:.1f}" if h in avg_fields and isinstance(item[h], float) else item[h]}</td>' for h in headers) + '</tr>')
     html.append('</table>')
     return '\n'.join(html)
 
@@ -135,8 +136,15 @@ def markdown_report(data, title='Code Statistics'):
         headers = list(data[0].keys())
         md.append('|' + '|'.join(headers) + '|')
         md.append('|' + '|'.join(['---'] * len(headers)) + '|')
+        avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
         for item in data:
-            md.append('|' + '|'.join(str(item[h]) for h in headers) + '|')
+            row = []
+            for h in headers:
+                v = item[h]
+                if h in avg_fields and isinstance(v, float):
+                    v = f"{v:.1f}"
+                row.append(str(v))
+            md.append('|' + '|'.join(row) + '|')
     return '\n'.join(md)
 
 def generate_markdown_summary(stats, health_report, hotspots=None):
@@ -155,8 +163,8 @@ def generate_markdown_summary(stats, health_report, hotspots=None):
     if health_report:
         lines.append('## Project Health')
         lines.append(f"- **Health Score:** {health_report['score']} / 100")
-        lines.append(f"- **Average Comment Density:** {health_report['avg_comment_density']:.2%}")
-        lines.append(f"- **Average Function Complexity:** {health_report['avg_complexity']:.2f}")
+        lines.append(f"- **Average Comment Density:** {health_report['avg_comment_density']:.1%}")
+        lines.append(f"- **Average Function Complexity:** {health_report['avg_complexity']:.1f}")
         lines.append(f"- **TODO/FIXME Count:** {health_report['todo_count']}")
         lines.append(f"- **Naming Violations:** {health_report['naming_violations']}")
         lines.append(f"- **Duplicate Code Blocks:** {health_report['duplicate_blocks']}")
@@ -219,6 +227,7 @@ def print_table(rows, headers=None, title=None):
             pass  # Fallback: do not sort or add percent if error
     # Format size column if present
     formatted_rows = []
+    avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
     for row in rows:
         new_row = dict(row)
         if 'size' in new_row:
@@ -226,6 +235,9 @@ def print_table(rows, headers=None, title=None):
                 new_row['size'] = format_size(int(new_row['size']))
             except Exception:
                 pass
+        for k in new_row:
+            if k in avg_fields and isinstance(new_row[k], float):
+                new_row[k] = f"{new_row[k]:.1f}"
         formatted_rows.append(new_row)
     col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
     if title:
@@ -251,8 +263,13 @@ def csv_report(data, headers=None):
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=headers)
     writer.writeheader()
+    avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
     for row in data:
-        writer.writerow({h: row.get(h, '') for h in headers})
+        row_out = dict(row)
+        for h in headers:
+            if h in avg_fields and isinstance(row_out.get(h), float):
+                row_out[h] = f"{row_out[h]:.1f}"
+        writer.writerow({h: row_out.get(h, '') for h in headers})
     return output.getvalue()
 
 def generate_mermaid_structure(root_path, max_depth=5):
