@@ -78,11 +78,12 @@ def main():
         import platform
         # 根據平台決定丟棄檔案的路徑
         nullfile = 'NUL' if os.name == 'nt' else '/dev/null'
+        excel_file = 'codestate_report.xlsx'
         commands = [
             ['--details'],
             ['--html', '--output', nullfile],
             ['--csv', '--output', nullfile],
-            ['--excel', '--output', nullfile],
+            ['--excel', '--output', excel_file],
             ['--failures-only'],
             ['--top', '3'],
             ['--only-lang', 'py,js'],
@@ -132,6 +133,12 @@ def main():
                 any_error = True
                 fail_count += 1
                 print(f"Exception in command: {' '.join(cmd)}: {e}")
+        # 刪除 codestate_report.xlsx
+        try:
+            if os.path.exists(excel_file):
+                os.remove(excel_file)
+        except Exception:
+            pass
         total = success_count + fail_count
         if not any_error:
             print(f'All options no error ({success_count}/{total}, 100%)')
@@ -372,6 +379,7 @@ def main():
         return
 
     if args.structure_mermaid:
+        import os
         mermaid = generate_mermaid_structure(args.directory)
         if args.output:
             abs_path = os.path.abspath(args.output)
@@ -578,7 +586,32 @@ def main():
             else:
                 print("\nNo major issues detected. Great job!")
     if args.complexitymap:
-        ascii_complexity_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
+        try:
+            ascii_complexity_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
+        except UnicodeEncodeError:
+            print('[Warning] Your terminal does not support Unicode block characters. Showing fallback:')
+            def fallback_heatmap(file_details, title=None):
+                if title:
+                    print(f"\n{title}")
+                if not file_details:
+                    print("No data to display.")
+                    return
+                low = 1.5
+                high = 3.0
+                print(f"{'File':40} | {'Complexity':10} | Heatmap")
+                print('-'*65)
+                for f in file_details:
+                    cplx = f.get('complexity', 0)
+                    if cplx < low:
+                        symbol = '.'
+                    elif cplx < high:
+                        symbol = '+'
+                    else:
+                        symbol = '*'
+                    bar = symbol * min(int(cplx * 2), 40)
+                    print(f"{f['path'][:40]:40} | {cplx:10.2f} | {bar}")
+            fallback_heatmap(analyzer.get_file_details(), title='File Complexity Heatmap')
+        return
     if args.deadcode:
         unused = analyzer.get_unused_defs()
         if not unused:
@@ -701,14 +734,16 @@ def main():
 
     if args.summary:
         hotspots = analyzer.get_git_hotspots(top_n=10)
-        summary_md = generate_markdown_summary(data, analyzer.get_health_report(), hotspots)
+        summary_md = generate_markdown_summary(stats, analyzer.get_health_report(), hotspots)
         if args.output:
+            import os
             abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8') as f:
                 f.write(summary_md)
             print(f'Markdown project summary written to {abs_path}')
         else:
             print(summary_md)
+        return
 
     if args.readme:
         from .visualizer import generate_auto_readme, print_ascii_tree
