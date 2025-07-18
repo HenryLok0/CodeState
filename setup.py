@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='codestate',
-    version='0.5.2',
+    version='0.5.3',
     description='A CLI tool for codebase statistics and ASCII visualization',
-    author='Your Name',
+    author='Henry Lok',
     packages=find_packages(),
     install_requires=['pathspec', 'openpyxl'],
     entry_points={

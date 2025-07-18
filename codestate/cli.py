@@ -97,25 +97,18 @@ def main():
 
     analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
     stats = analyzer.analyze(regex_rules=regex_rules)
-    # ========== 新增功能分支預留 ==========
+    file_details = analyzer.get_file_details()
+    data = file_details
+
     # --only-lang 過濾
     if args.only_lang:
         only_exts = [f'.{e.strip().lstrip(".")}' for e in args.only_lang.split(',') if e.strip()]
-        analyzer.file_types = only_exts
-    # --complexity-threshold 設定
-    complexity_threshold = args.complexity_threshold if args.complexity_threshold is not None else 3.0
+        data = [f for f in data if f['ext'] in only_exts]
+
     # --top N 過濾
     if args.top:
-        # 預設依 total_lines 排序，若 --sort-by complexity 則依 complexity
-        sort_key = 'total_lines'
-        if hasattr(args, 'sort_by') and args.sort_by == 'complexity':
-            sort_key = 'complexity'
-        # 針對 file_details 做排序
-        file_details = analyzer.get_file_details()
-        file_details_sorted = sorted(file_details, key=lambda x: x.get(sort_key, 0), reverse=True)
-        file_details = file_details_sorted[:args.top]
-        # 覆蓋 data 只保留這些檔案的統計
-        data = file_details
+        data = sorted(data, key=lambda x: x.get('total_lines', 0), reverse=True)[:args.top]
+
     # --failures-only 過濾
     if args.failures_only:
         violations = analyzer.get_naming_violations()
@@ -123,7 +116,6 @@ def main():
             threshold_file=int(getattr(args, 'warnsize', [300])[0]) if getattr(args, 'warnsize', None) else 300,
             threshold_func=int(getattr(args, 'warnsize', [50, 50])[1]) if getattr(args, 'warnsize', None) and len(args.warnsize) > 1 else 50
         )
-        file_details = analyzer.get_file_details()
         failed_files = set()
         for v in violations:
             failed_files.add(v['file'])
@@ -132,22 +124,21 @@ def main():
         for w in large_warn['functions']:
             failed_files.add(w['file'])
         # 複雜度過高
-        for f in file_details:
+        complexity_threshold = args.complexity_threshold if args.complexity_threshold is not None else 3.0
+        for f in data:
             if f.get('complexity', 0) > complexity_threshold:
                 failed_files.add(f['path'])
         # 低註解密度
-        for f in file_details:
+        for f in data:
             density = f.get('comment_lines', 0) / f['total_lines'] if f['total_lines'] else 0
             if density < 0.05:
                 failed_files.add(f['path'])
-        # 只保留有問題的檔案
-        file_details = [f for f in file_details if f['path'] in failed_files]
-        data = file_details
+        data = [f for f in data if f['path'] in failed_files]
+
     # --file-age 顯示
     if args.file_age:
         import datetime
-        file_details = analyzer.get_file_details()
-        for f in file_details:
+        for f in data:
             try:
                 stat = os.stat(f['path'])
                 created = datetime.datetime.fromtimestamp(getattr(stat, 'st_ctime', 0)).strftime('%Y-%m-%d')
@@ -158,8 +149,9 @@ def main():
             f['modified'] = modified
         headers = ["path", "created", "modified"]
         from .visualizer import print_table
-        print_table(file_details, headers=headers, title='File Age Table:')
+        print_table(data, headers=headers, title='File Age Table:')
         return
+
     # --uncommitted 顯示
     if args.uncommitted:
         import subprocess
@@ -169,8 +161,7 @@ def main():
             changed_files = [line.strip() for line in output.splitlines() if line.strip()]
         except Exception:
             changed_files = []
-        file_details = analyzer.get_file_details()
-        uncommitted = [f for f in file_details if os.path.relpath(f['path'], args.directory) in changed_files]
+        uncommitted = [f for f in data if os.path.relpath(f['path'], args.directory) in changed_files]
         # 顯示行數增減
         stats = []
         for f in uncommitted:
@@ -184,19 +175,30 @@ def main():
         from .visualizer import print_table
         print_table(stats, headers=["path", "lines_added", "lines_deleted"], title='Uncommitted changes:')
         return
+
     # --excel 匯出
     if args.excel:
         from .visualizer import export_excel_report
         output_path = args.excel if isinstance(args.excel, str) else 'codestate_report.xlsx'
-        # 若有 --details，則匯出詳細 per-file
-        if args.details or args.details_csv:
-            file_details = analyzer.get_file_details()
-            headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
-            export_excel_report(file_details, output_path, headers=headers)
-        else:
-            export_excel_report(data, output_path)
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        export_excel_report(data, output_path, headers=headers)
         print(f'Excel report written to {output_path}')
         return
+
+    # 若有 --details 則詳細輸出
+    if args.details:
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        from .visualizer import print_table
+        print_table(data, headers=headers, title='File Details:')
+        return
+
+    # 若有 --top 或 --failures-only 但沒指定 --details，預設也輸出表格
+    if args.top or args.failures_only:
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        from .visualizer import print_table
+        print_table(data, headers=headers, title='Filtered File List:')
+        return
+
     # 檔案分析完畢，進行輸出步驟
     if args.tree:
         print('Project structure:')
@@ -407,14 +409,6 @@ def main():
 
     if args.langdist:
         ascii_pie_chart(data, value_key='file_count', label_key='ext', title='Language Distribution (by file count)')
-    if args.details:
-        print("\nFile Details:")
-        file_details = analyzer.get_file_details()
-        if file_details:
-            headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
-            print_table(file_details, headers=headers, title=None)
-        else:
-            print("No file details available.")
     if args.dup:
         dups = analyzer.get_duplicates()
         print(f"\nDuplicate code blocks (block size >= 5 lines, found {len(dups)} groups):")
@@ -622,7 +616,7 @@ def main():
 
     if args.summary:
         hotspots = analyzer.get_git_hotspots(top_n=10)
-        summary_md = generate_markdown_summary(stats, analyzer.get_health_report(), hotspots)
+        summary_md = generate_markdown_summary(data, analyzer.get_health_report(), hotspots)
         if args.output:
             abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8') as f:
@@ -727,7 +721,7 @@ def main():
             badges.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
         # --- end badge 偵測 ---
         readme_md = generate_auto_readme(
-            stats, health, contributors, hotspots, structure,
+            data, health, contributors, hotspots, structure,
             badges=badges, root_path=args.directory
         )
         # 決定輸出檔名：預設 README.md，若已存在則用 README.codestate.md
