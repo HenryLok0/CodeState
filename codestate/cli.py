@@ -171,11 +171,19 @@ def main():
         except Exception:
             pass
         total = success_count + fail_count
+        total_elapsed = time.time() - start_time
+        if total_elapsed >= 60:
+            mins = int(total_elapsed // 60)
+            secs = int(total_elapsed % 60)
+            elapsed_str = f'{mins}m{secs}s'
+        else:
+            elapsed_str = f'{total_elapsed:.1f}s'
         if not any_error:
             print(f'All options no error ({success_count}/{total}, 100%)')
         else:
             percent = (success_count / total * 100) if total else 0
             print(f'Success: {success_count}, Fail: {fail_count}, Success rate: {percent:.1f}%')
+        print(f'Total elapsed time: {elapsed_str}')
         sys.exit(0)
 
     # Analyze codebase
