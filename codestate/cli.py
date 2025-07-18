@@ -110,6 +110,8 @@ def main():
             ['--list-extensions'],
         ]
         any_error = False
+        success_count = 0
+        fail_count = 0
         for cmd in commands:
             try:
                 result = subprocess.run(
@@ -121,13 +123,21 @@ def main():
                 )
                 if result.returncode != 0:
                     any_error = True
+                    fail_count += 1
                     print(f"Error in command: {' '.join(cmd)}")
                     print(result.stderr)
+                else:
+                    success_count += 1
             except Exception as e:
                 any_error = True
+                fail_count += 1
                 print(f"Exception in command: {' '.join(cmd)}: {e}")
+        total = success_count + fail_count
         if not any_error:
-            print('All options no error')
+            print(f'All options no error ({success_count}/{total}, 100%)')
+        else:
+            percent = (success_count / total * 100) if total else 0
+            print(f'Success: {success_count}, Fail: {fail_count}, Success rate: {percent:.1f}%')
         sys.exit(0)
 
     # Analyze codebase
@@ -296,6 +306,7 @@ def main():
         sys.exit(0)
 
     if args.html:
+        import os
         result = html_report(data, title='Code Statistics')
         if args.output:
             abs_path = os.path.abspath(args.output)
@@ -305,6 +316,7 @@ def main():
         else:
             print(result)
     elif args.md:
+        import os
         result = markdown_report(data, title='Code Statistics')
         if args.output:
             abs_path = os.path.abspath(args.output)
@@ -314,6 +326,7 @@ def main():
         else:
             print(result)
     elif args.json:
+        import os
         result = json.dumps(data, indent=2, ensure_ascii=False)
         if args.output:
             abs_path = os.path.abspath(args.output)
@@ -468,6 +481,7 @@ def main():
 
     # Only show default bar chart if no arguments (just 'codestate')
     if len(sys.argv) == 1:
+        import sys
         ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
         print_comment_density(data, label_key='ext')
 
@@ -602,6 +616,7 @@ def main():
         print_table(rows, headers=["ext", "file_count", "total_lines", "comment_lines", "function_count"])
 
     if args.csv:
+        import os
         if args.output:
             abs_path = os.path.abspath(args.output)
             with open(args.output, 'w', encoding='utf-8', newline='') as f:
@@ -610,6 +625,7 @@ def main():
         else:
             print(csv_report(data))
     if args.details_csv:
+        import os
         file_details = analyzer.get_file_details()
         headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
         csv_str = csv_report(file_details, headers=headers)
@@ -621,6 +637,7 @@ def main():
         else:
             print(csv_str)
     if args.groupdir_csv:
+        import os
         grouped = analyzer.get_grouped_stats(by='dir')
         rows = []
         for d, stats in grouped.items():
@@ -636,6 +653,7 @@ def main():
         else:
             print(csv_str)
     if args.groupext_csv:
+        import os
         grouped = analyzer.get_grouped_stats(by='ext')
         rows = []
         for ext, stats in grouped.items():
