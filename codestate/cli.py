@@ -9,6 +9,7 @@ from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure# 新增 SVG 卡片/徽章函式
 from .visualizer import generate_lang_card_svg, generate_sustainability_badge_svg
 from . import __version__
+from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure
 
 def main():
     # Parse CLI arguments
@@ -154,14 +155,20 @@ def main():
                 progress = int(bar_len * idx / total)
                 bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
                 progress_str = f"{idx}/{total}({percent_done}%)"
+                if est_left >= 60:
+                    est_m = int(est_left // 60)
+                    est_s = int(est_left % 60)
+                    est_str = f'{est_m}m{est_s}s'
+                else:
+                    est_str = f'{est_left:.1f}s'
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
+                    print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left")
                     print(result.stderr)
                 else:
                     success_count += 1
-                    print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left")
+                    print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left")
             except Exception as e:
                 any_error = True
                 fail_count += 1
@@ -173,7 +180,13 @@ def main():
                 progress = int(bar_len * idx / total)
                 bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
                 progress_str = f"{idx}/{total}({percent_done}%)"
-                print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_left:.1f}s left: {e}")
+                if est_left >= 60:
+                    est_m = int(est_left // 60)
+                    est_s = int(est_left % 60)
+                    est_str = f'{est_m}m{est_s}s'
+                else:
+                    est_str = f'{est_left:.1f}s'
+                print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
