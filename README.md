@@ -50,7 +50,7 @@ codestate [directory] [options]
 | `--trend`              | Show line count trend for a specific file |
 | `--refactor-suggest`   | Show files/functions that are refactor candidates, with reasons |
 | `--autofix-suggest`    | Suggest auto-fix patches for naming, comments, and duplicate code |
-| `--complexity-threshold`| Set custom complexity threshold for warnings |
+| `--complexity-threshold <value>` | Set custom complexity threshold for warnings (**requires a value**, e.g. --complexity-threshold 5) |
 | **[Output / Reports]** |             |
 | `--html`               | Export result as HTML table |
 | `--md`                 | Export result as Markdown table |
@@ -80,7 +80,7 @@ codestate [directory] [options]
 | **[Other]**            |             |
 | `--style-check`        | Check code style: indentation, line length, trailing whitespace, EOF newline |
 | `--openapi`            | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
-| `--multi`              | Analyze multiple root directories (monorepo support) |
+| `--multi <dir1> [dir2 ...]`      | Analyze multiple root directories (monorepo support, **requires at least one directory**) |
 | `--version`            | Show codestate version and exit |
 
 ## Examples
@@ -118,6 +118,12 @@ codestate --file-age
 
 # Generate a markdown project summary
 codestate --summary --output PROJECT_SUMMARY.md
+
+# Set custom complexity threshold (requires a value)
+codestate --complexity-threshold 5 --failures-only
+
+# Analyze multiple directories (requires at least one directory)
+codestate --multi src tests
 ```
 
 ## Contributing

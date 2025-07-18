@@ -210,10 +210,7 @@ def main():
         from .visualizer import print_ascii_tree
         print('Project structure:')
         print_ascii_tree(args.directory)
-    if args.badges:
-        # ... badges 輸出 ...
-        pass
-    # 其他輸出步驟同理
+        return
 
     # Prepare data for visualization
     data = []
@@ -235,11 +232,6 @@ def main():
         for ext in sorted(exts):
             print(ext)
         sys.exit(0)
-
-    if args.tree:
-        from .visualizer import print_ascii_tree
-        print('Project structure:')
-        print_ascii_tree(args.directory)
 
     if args.html:
         result = html_report(data, title='Code Statistics')
