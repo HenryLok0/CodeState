@@ -9,7 +9,6 @@ from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure# 新增 SVG 卡片/徽章函式
 from .visualizer import generate_lang_card_svg, generate_sustainability_badge_svg
 from . import __version__
-from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure
 
 def main():
     # Parse CLI arguments
