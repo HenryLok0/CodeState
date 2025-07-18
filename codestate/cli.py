@@ -113,7 +113,7 @@ def main():
         for cmd in commands:
             try:
                 result = subprocess.run(
-                    [sys.executable, sys.argv[0]] + cmd,
+                    [sys.executable, '-m', 'codestate.cli'] + cmd,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                     cwd=args.directory if hasattr(args, 'directory') else '.',
