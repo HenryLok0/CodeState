@@ -725,9 +725,8 @@ def main():
             badges.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
         if license_type:
             badges.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
-        # --- end badge 偵測 ---
         readme_md = generate_auto_readme(
-            data, health, contributors, hotspots, structure,
+            stats, health, contributors, hotspots, structure,
             badges=badges, root_path=args.directory
         )
         # 決定輸出檔名：預設 README.md，若已存在則用 README.codestate.md
