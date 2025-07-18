@@ -68,14 +68,16 @@ def main():
     parser.add_argument('--file-age', action='store_true', help='Show file creation and last modified time')
     parser.add_argument('--uncommitted', action='store_true', help='Show stats for files with uncommitted changes (git diff)')
     parser.add_argument('--all', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--test', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    # --all 隱藏自動測試分支
-    if getattr(args, 'all', False):
+    # --test 隱藏自動測試分支
+    if getattr(args, 'test', False):
         import subprocess
         import sys
         import os
         import platform
+        import time
         # 根據平台決定丟棄檔案的路徑
         nullfile = 'NUL' if os.name == 'nt' else '/dev/null'
         excel_file = 'codestate_report.xlsx'
@@ -113,7 +115,9 @@ def main():
         any_error = False
         success_count = 0
         fail_count = 0
-        for cmd in commands:
+        total = len(commands)
+        start_time = time.time()
+        for idx, cmd in enumerate(commands, 1):
             try:
                 result = subprocess.run(
                     [sys.executable, '-m', 'codestate.cli'] + cmd,
@@ -122,17 +126,22 @@ def main():
                     cwd=args.directory if hasattr(args, 'directory') else '.',
                     text=True
                 )
+                elapsed = time.time() - start_time
+                left = total - idx
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"Error in command: {' '.join(cmd)}")
+                    print(f"[FAIL] {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s")
                     print(result.stderr)
                 else:
                     success_count += 1
+                    print(f"[OK]   {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s")
             except Exception as e:
                 any_error = True
                 fail_count += 1
-                print(f"Exception in command: {' '.join(cmd)}: {e}")
+                elapsed = time.time() - start_time
+                left = total - idx
+                print(f"[EXCEPTION] {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
