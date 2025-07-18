@@ -480,8 +480,8 @@ def main():
         return
 
     # Only show default bar chart if no arguments (just 'codestate')
+    import sys
     if len(sys.argv) == 1:
-        import sys
         ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
         print_comment_density(data, label_key='ext')
 
