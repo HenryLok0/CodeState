@@ -60,11 +60,12 @@ codestate [directory] [options]
 | `--md`                 | Export result as Markdown table |
 | `--json`               | Export result as JSON |
 | `--csv`                | Export summary statistics as CSV |
+| `--excel`              | Export summary statistics as Excel (.xlsx) |
 | `--details-csv`        | Export per-file details as CSV |
 | `--groupdir-csv`       | Export grouped-by-directory stats as CSV |
 | `--groupext-csv`       | Export grouped-by-extension stats as CSV |
-| `--excel`              | Export summary statistics as Excel (.xlsx) |
 | `--output`, `-o`       | Output file for HTML/Markdown/JSON/CSV/Excel export |
+| `--report-issues`       | Export all detected issues (naming, size, complexity, etc.) as a markdown or JSON report |
 | **[Project Structure & Health]** |             |
 | `--tree`               | Show ASCII tree view of project structure |
 | `--structure-mermaid`  | Generate a Mermaid diagram of the project directory structure |
@@ -77,6 +78,7 @@ codestate [directory] [options]
 | `--contributors`       | Show contributor statistics (file count, line count, commit count per author) |
 | `--contributors-detail`| Show detailed contributor statistics |
 | `--hotspot`            | Show most frequently changed files (git hotspots) |
+| `--churn`              | Show most changed files in the last N days (default 30) |
 | `--ci`                 | CI/CD mode: exit non-zero if major issues found |
 | **[Automation / README / Badges]** |             |
 | `--badges`             | Auto-detect and print project language/framework/license/CI badges for README |
