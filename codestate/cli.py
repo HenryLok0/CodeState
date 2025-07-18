@@ -67,7 +67,68 @@ def main():
     parser.add_argument('--only-lang', type=str, help='Only analyze specific file extensions, comma separated (e.g. py,js)')
     parser.add_argument('--file-age', action='store_true', help='Show file creation and last modified time')
     parser.add_argument('--uncommitted', action='store_true', help='Show stats for files with uncommitted changes (git diff)')
+    parser.add_argument('--all', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    # --all 隱藏自動測試分支
+    if getattr(args, 'all', False):
+        import subprocess
+        import sys
+        import os
+        import platform
+        # 根據平台決定丟棄檔案的路徑
+        nullfile = 'NUL' if os.name == 'nt' else '/dev/null'
+        commands = [
+            ['--details'],
+            ['--html', '--output', nullfile],
+            ['--csv', '--output', nullfile],
+            ['--excel', '--output', nullfile],
+            ['--failures-only'],
+            ['--top', '3'],
+            ['--only-lang', 'py,js'],
+            ['--file-age'],
+            ['--uncommitted'],
+            ['--summary', '--output', nullfile],
+            ['--langdist'],
+            ['--maxmin'],
+            ['--contributors'],
+            ['--contributors-detail'],
+            ['--hotspot'],
+            ['--style-check'],
+            ['--security'],
+            ['--deadcode'],
+            ['--dup'],
+            ['--apidoc'],
+            ['--naming'],
+            ['--warnsize'],
+            ['--complexitymap'],
+            ['--typestats'],
+            ['--structure-mermaid', '--output', nullfile],
+            ['--tree'],
+            ['--openapi', '--output', nullfile],
+            ['--version'],
+            ['--list-extensions'],
+        ]
+        any_error = False
+        for cmd in commands:
+            try:
+                result = subprocess.run(
+                    [sys.executable, sys.argv[0]] + cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    cwd=args.directory if hasattr(args, 'directory') else '.',
+                    text=True
+                )
+                if result.returncode != 0:
+                    any_error = True
+                    print(f"Error in command: {' '.join(cmd)}")
+                    print(result.stderr)
+            except Exception as e:
+                any_error = True
+                print(f"Exception in command: {' '.join(cmd)}: {e}")
+        if not any_error:
+            print('All options no error')
+        sys.exit(0)
 
     # Analyze codebase
     regex_rules = args.regex if args.regex else None
