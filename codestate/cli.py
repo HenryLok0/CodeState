@@ -135,12 +135,17 @@ def main():
                 failed_files.add(f['path'])
         data = [f for f in data if f['path'] in failed_files]
 
+    # 排除常見二進位/非程式碼檔案
+    EXCLUDE_EXTS = {'.xlsx', '.xls', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.tar', '.gz'}
+    data = [f for f in data if f['ext'] not in EXCLUDE_EXTS]
+
     # --file-age 顯示
     if args.file_age:
+        import os
         import datetime
         for f in data:
             try:
-                stat = os.stat(f['path'])
+                stat = os.stat(os.path.abspath(f['path']))
                 created = datetime.datetime.fromtimestamp(getattr(stat, 'st_ctime', 0)).strftime('%Y-%m-%d')
                 modified = datetime.datetime.fromtimestamp(getattr(stat, 'st_mtime', 0)).strftime('%Y-%m-%d')
             except Exception:
@@ -154,6 +159,7 @@ def main():
 
     # --uncommitted 顯示
     if args.uncommitted:
+        import os  # 修正 free variable bug
         import subprocess
         try:
             cmd = ['git', '-C', str(args.directory), 'diff', '--name-only']

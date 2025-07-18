@@ -1,4 +1,4 @@
-# CodeState CLI
+# CodeState
 
 [![Code Size](https://img.shields.io/github/languages/code-size/HenryLok0/CodeState?style=flat-square&logo=github)](https://github.com/HenryLok0/CodeState)
 ![PyPI - Version](https://img.shields.io/pypi/v/CodeState)
@@ -20,212 +20,104 @@ pip install codestate
 codestate [directory] [options]
 ```
 
-### Options
+## Options
 
-| Option                | Description |
-|-----------------------|-------------|
-| `directory`           | Target directory to analyze (default: current directory) |
-| `--exclude`           | Directories to exclude (space separated, e.g. --exclude .git venv node_modules) |
-| `--ext`               | File extensions to include (e.g. --ext .py .js) |
-| `--json`              | Export result as JSON |
-| `--html`              | Export result as HTML table |
-| `--md`                | Export result as Markdown table |
-| `--details`           | Show detailed statistics for each file |
-| `--dup`               | Show duplicate code blocks (5+ lines) |
-| `--maxmin`            | Show file with most/least lines |
-| `--authors`           | Show git main author and last modifier for each file |
-| `--langdist`          | Show language (file extension) distribution as ASCII pie chart |
-| `--naming`            | Check function/class naming conventions (PEP8, PascalCase) |
-| `--tree`              | Show ASCII tree view of project structure |
-| `--apidoc`            | Show API/function/class docstring summaries |
-| `--warnsize`          | Warn for large files/functions (optionally specify file and function line thresholds, default 300/50) |
-| `--regex`             | User-defined regex rules for custom code checks (space separated, enclose in quotes) |
-| `--output`, `-o`      | Output file for HTML/Markdown/JSON/CSV/Markdown export |
-| `--hotspot`           | Show most frequently changed files (git hotspots) |
-| `--health`            | Show project health score and suggestions |
-| `--groupdir`          | Show grouped statistics by top-level directory |
-| `--groupext`          | Show grouped statistics by file extension |
-| `--complexitymap`     | Show ASCII heatmap of file complexity |
-| `--deadcode`          | Show unused (dead) functions/classes in Python files |
-| `--ci`                | CI/CD mode: exit non-zero if major issues found |
-| `--summary`           | Generate a markdown project summary (print or --output) |
-| `--typestats`         | Show function parameter/type annotation statistics (Python) |
-| `--security`          | Scan for common and advanced security issues (SSRF, RCE, SQLi, secrets, hardcoded credentials, etc.) |
-| `--csv`               | Export summary statistics as CSV |
-| `--details-csv`       | Export per-file details as CSV |
-| `--groupdir-csv`      | Export grouped-by-directory stats as CSV |
-| `--groupext-csv`      | Export grouped-by-extension stats as CSV |
-| `--version`           | Show codestate version and exit |
-| `--list-extensions`   | List all file extensions found in the project |
-| `--size`   | Show each file's size in bytes as a table |
-| `--trend`             | Show line count trend for a specific file (__**require output file path**__) |
-| `--refactor-suggest`  | Show files/functions that are refactor candidates, with reasons |
-| `--structure-mermaid` | Generate a Mermaid diagram of the project directory structure |
-| `--openapi`           | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
-| `--style-check`       | Check code style: indentation, line length, trailing whitespace, EOF newline |
-| `--multi`             | Analyze multiple root directories (monorepo support) |
-| `--contributors`      | Show contributor statistics (file count, line count, commit count per author) |
-| `--contributors-detail`      | Show detail contributor statistics |
-| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
-| `--badge-sustainability`      | Output SVG sustainability/health badge |
-| `--badges`      | Auto-detect and print project language/framework/license/CI badges for README |
-| `--readme`      | Auto-generate a README template based on analysis |
-| `--autofix-suggest`      | Suggest auto-fix patches for naming, comments, and duplicate code |
-| `--top N`               | Show only the top N files by lines or complexity |
-| `--excel`               | Export summary statistics as Excel (.xlsx) |
-| `--failures-only`       | Show only files with issues (naming, size, complexity, etc.) |
+| Option                  | Description |
+|------------------------|-------------|
+| **[Basic Analysis & Filtering]**    |             |
+| `directory`            | Target directory to analyze (default: current directory) |
+| `--exclude`            | Directories to exclude (e.g. --exclude .git venv node_modules) |
+| `--ext`                | File extensions to include (e.g. --ext .py .js) |
+| `--only-lang`          | Only analyze specific file extensions, comma separated (e.g. py,js) |
+| `--top N`              | Show only the top N files by lines or complexity |
+| `--failures-only`      | Show only files with issues (naming, size, complexity, etc.) |
+| `--regex`              | User-defined regex rules for custom code checks (space separated, enclose in quotes) |
+| `--file-age`           | Show file creation and last modified time |
+| `--uncommitted`        | Show stats for files with uncommitted changes (git diff) |
+| `--size`               | Show each file's size in bytes as a table |
+| `--list-extensions`    | List all file extensions found in the project |
+| **[Statistics & Detailed Analysis]** |             |
+| `--details`            | Show detailed statistics for each file |
+| `--dup`                | Show duplicate code blocks (5+ lines) |
+| `--maxmin`             | Show file with most/least lines |
+| `--langdist`           | Show language (file extension) distribution as ASCII pie chart |
+| `--complexitymap`      | Show ASCII heatmap of file complexity |
+| `--warnsize`           | Warn for large files/functions (optionally specify file and function line thresholds, default 300/50) |
+| `--naming`             | Check function/class naming conventions (PEP8, PascalCase) |
+| `--apidoc`             | Show API/function/class docstring summaries |
+| `--deadcode`           | Show unused (dead) functions/classes in Python files |
+| `--typestats`          | Show function parameter/type annotation statistics (Python) |
+| `--trend`              | Show line count trend for a specific file |
+| `--refactor-suggest`   | Show files/functions that are refactor candidates, with reasons |
+| `--autofix-suggest`    | Suggest auto-fix patches for naming, comments, and duplicate code |
 | `--complexity-threshold`| Set custom complexity threshold for warnings |
-| `--only-lang`           | Only analyze specific file extensions, comma separated (e.g. py,js) |
-| `--file-age`            | Show file creation and last modified time |
-| `--uncommitted`         | Show stats for files with uncommitted changes (git diff) |
+| **[Output / Reports]** |             |
+| `--html`               | Export result as HTML table |
+| `--md`                 | Export result as Markdown table |
+| `--json`               | Export result as JSON |
+| `--csv`                | Export summary statistics as CSV |
+| `--details-csv`        | Export per-file details as CSV |
+| `--groupdir-csv`       | Export grouped-by-directory stats as CSV |
+| `--groupext-csv`       | Export grouped-by-extension stats as CSV |
+| `--excel`              | Export summary statistics as Excel (.xlsx) |
+| `--output`, `-o`       | Output file for HTML/Markdown/JSON/CSV/Excel export |
+| **[Project Structure & Health]** |             |
+| `--tree`               | Show ASCII tree view of project structure |
+| `--structure-mermaid`  | Generate a Mermaid diagram of the project directory structure |
+| `--health`             | Show project health score and suggestions |
+| `--summary`            | Generate a markdown project summary (print or --output) |
+| `--badge-sustainability`| Output SVG sustainability/health badge |
+| `--lang-card-svg`      | Output SVG language stats card (like GitHub top-langs) |
+| **[Contributors / CI]** |             |
+| `--authors`            | Show git main author and last modifier for each file |
+| `--contributors`       | Show contributor statistics (file count, line count, commit count per author) |
+| `--contributors-detail`| Show detailed contributor statistics |
+| `--hotspot`            | Show most frequently changed files (git hotspots) |
+| `--ci`                 | CI/CD mode: exit non-zero if major issues found |
+| **[Automation / README / Badges]** |             |
+| `--badges`             | Auto-detect and print project language/framework/license/CI badges for README |
+| `--readme`             | Auto-generate a README template based on analysis |
+| **[Other]**            |             |
+| `--style-check`        | Check code style: indentation, line length, trailing whitespace, EOF newline |
+| `--openapi`            | Generate OpenAPI 3.0 JSON for Flask/FastAPI routes |
+| `--multi`              | Analyze multiple root directories (monorepo support) |
+| `--version`            | Show codestate version and exit |
 
 ## Examples
 
-Analyze the current directory (excluding .git, venv, node_modules by default):
 ```bash
+# Analyze the current directory (default)
 codestate
-```
 
-Analyze a specific directory and exclude build and dist folders:
-```bash
+# Analyze a specific directory and exclude build and dist folders
 codestate myproject --exclude build dist
-```
 
-Only analyze Python and JavaScript files:
-```bash
-codestate --ext .py .js
-```
+# Only analyze Python and JavaScript files
+codestate --only-lang py,js
 
-Export results as JSON:
-```bash
-codestate --json
-```
+# Show only the top 5 largest files
+codestate --top 5
 
-Export results as HTML:
-```bash
-codestate --html
-```
-
-Export results as Markdown:
-```bash
-codestate --md
-```
-
-Show detailed statistics for each file:
-```bash
+# Show detailed statistics for each file
 codestate --details
-```
 
-Show duplicate code blocks (5+ lines):
-```bash
-codestate --dup
-```
-
-Show file with most/least lines:
-```bash
-codestate --maxmin
-```
-
-Show git main author and last modifier for each file:
-```bash
-codestate --authors
-```
-
-Show language distribution as ASCII pie chart:
-```bash
-codestate --langdist
-```
-
-Check function/class naming conventions:
-```bash
-codestate --naming
-```
-
-Show ASCII tree view of project structure:
-```bash
-codestate --tree
-```
-
-Show API/function/class docstring summaries:
-```bash
-codestate --apidoc
-```
-
-Warn for large files/functions (default 300/50 lines, or specify):
-```bash
-codestate --warnsize
-codestate --warnsize 200 30
-```
-
-User-defined regex rules for custom code checks:
-```bash
-codestate --regex "TODO" "def [A-Z]"
-codestate --regex "password" "eval\("
-```
-
-Export results as HTML to a file:
-```bash
+# Export results as HTML
 codestate --html --output report.html
-```
 
-Export results as Markdown to a file:
-```bash
-codestate --md --output report.md
-```
+# Export results as CSV
+codestate --csv --output report.csv
 
-Export results as JSON to a file:
-```bash
-codestate --json --output result.json
-```
+# Export results as Excel
+codestate --excel --output report.xlsx
 
-Show most frequently changed files (git hotspots):
-```bash
-codestate --hotspot
-```
+# Show only files with issues (naming, size, complexity, etc.)
+codestate --failures-only
 
-Show project health score and suggestions:
-```bash
-codestate --health
-```
+# Show file creation and last modified time
+codestate --file-age
 
-Show grouped statistics by top-level directory:
-```bash
-codestate --groupdir
-```
-
-Show grouped statistics by file extension:
-```bash
-codestate --groupext
-```
-
-Show ASCII heatmap of file complexity:
-```bash
-codestate --complexitymap
-```
-
-Show unused (dead) functions/classes in Python files:
-```bash
-codestate --deadcode
-```
-
-CI/CD mode: exit non-zero if major issues found:
-```bash
-codestate --ci
-```
-
-Generate a markdown project summary:
-```bash
+# Generate a markdown project summary
 codestate --summary --output PROJECT_SUMMARY.md
-```
-
-Show function parameter/type annotation statistics:
-```bash
-codestate --typestats
-```
-
-Scan for common insecure patterns and secrets:
-```bash
-codestate --security
 ```
 
 ## Contributing
