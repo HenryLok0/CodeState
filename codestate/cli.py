@@ -67,7 +67,6 @@ def main():
     parser.add_argument('--only-lang', type=str, help='Only analyze specific file extensions, comma separated (e.g. py,js)')
     parser.add_argument('--file-age', action='store_true', help='Show file creation and last modified time')
     parser.add_argument('--uncommitted', action='store_true', help='Show stats for files with uncommitted changes (git diff)')
-    parser.add_argument('--all', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--test', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -131,17 +130,17 @@ def main():
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"[FAIL] {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s")
+                    print(f"[FAIL] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed")
                     print(result.stderr)
                 else:
                     success_count += 1
-                    print(f"[OK]   {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s")
+                    print(f"[OK]   {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed")
             except Exception as e:
                 any_error = True
                 fail_count += 1
                 elapsed = time.time() - start_time
                 left = total - idx
-                print(f"[EXCEPTION] {idx}/{total} {' '.join(cmd)} | 剩餘 {left} | 經過 {elapsed:.1f}s: {e}")
+                print(f"[EXCEPTION] {idx}/{total} {' '.join(cmd)} | {left} remaining | {elapsed:.1f}s elapsed: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
