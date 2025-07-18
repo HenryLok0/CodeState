@@ -72,6 +72,8 @@ def main():
     parser.add_argument('--open', type=str, help='Show detailed analysis for a single file')
     parser.add_argument('--compare', nargs=2, metavar=('DIR1', 'DIR2'), help='Compare statistics between two directories')
     parser.add_argument('--blame', type=str, help='Show git blame statistics for a file')
+    parser.add_argument('--churn', type=int, nargs='?', const=30, help='Show most changed files in the last N days (default 30)')
+    parser.add_argument('--report-issues', action='store_true', help='Export all detected issues (naming, size, complexity, etc.) as a markdown or JSON report')
     args = parser.parse_args()
 
     # --test 隱藏自動測試分支
@@ -85,6 +87,7 @@ def main():
         nullfile = 'NUL' if os.name == 'nt' else '/dev/null'
         excel_file = 'codestate_report.xlsx'
         commands = [
+            [],
             ['--details'],
             ['--html', '--output', nullfile],
             ['--csv', '--output', nullfile],
@@ -118,6 +121,8 @@ def main():
             ['--open', 'codestate/cli.py'],
             ['--blame', 'codestate/cli.py'],
             ['--compare', 'codestate', 'tests'],
+            ['--churn', '30'],
+            ['--report-issues'],
         ]
         any_error = False
         success_count = 0
@@ -1119,6 +1124,76 @@ def main():
                 print(f'{author[:17]:17} | {count:5} | {percent:6.2f}%')
         except Exception as e:
             print(f'[codestate] Failed to run git blame: {e}')
+        return
+
+    if args.churn is not None:
+        # 實作 churn: 顯示最近 N 天內最常變動的檔案
+        import subprocess
+        import datetime
+        from collections import Counter
+        days = args.churn if args.churn else 30
+        try:
+            since = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime('%Y-%m-%d')
+            cmd = ['git', '-C', str(args.directory), 'log', f'--since={since}', '--name-only', '--pretty=format:']
+            output = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+            files = [line.strip() for line in output.splitlines() if line.strip()]
+            counter = Counter(files)
+            rows = []
+            for path, count in counter.most_common(20):
+                rows.append({'file': path, 'changes': count})
+            if rows:
+                from .visualizer import print_table
+                print_table(rows, headers=['file', 'changes'], title=f'Most changed files in the last {days} days:')
+            else:
+                print(f'No file changes found in the last {days} days.')
+        except Exception as e:
+            print(f'[codestate] Failed to get churn data: {e}')
+        return
+    if args.report_issues:
+        # 實作 report-issues: 匯出所有偵測到的問題為 markdown
+        issues = []
+        # 命名違規
+        violations = analyzer.get_naming_violations()
+        if violations:
+            issues.append('## Naming Violations')
+            for v in violations:
+                issues.append(f"- {v['type']} `{v['name']}` in `{v['file']}` (line {v['line']}): should be {v['rule']}")
+        # 過大檔案/函式
+        large_warn = analyzer.get_large_warnings()
+        if large_warn['files']:
+            issues.append('## Large Files')
+            for w in large_warn['files']:
+                issues.append(f"- `{w['file']}`: {w['lines']} lines (>{w['threshold']})")
+        if large_warn['functions']:
+            issues.append('## Large Functions')
+            for w in large_warn['functions']:
+                issues.append(f"- `{w['function']}` in `{w['file']}` (line {w['line']}): {w['lines']} lines (>{w['threshold']})")
+        # 複雜度過高
+        complexity_threshold = args.complexity_threshold if args.complexity_threshold is not None else 3.0
+        complex_files = [f for f in file_details if f.get('complexity', 0) > complexity_threshold]
+        if complex_files:
+            issues.append('## High Complexity Files')
+            for f in complex_files:
+                issues.append(f"- `{f['path']}`: complexity {f['complexity']} (> {complexity_threshold})")
+        # 低註解密度
+        low_comment = [f for f in file_details if f.get('total_lines', 0) > 0 and (f.get('comment_lines', 0) / f['total_lines']) < 0.05]
+        if low_comment:
+            issues.append('## Low Comment Density')
+            for f in low_comment:
+                density = f.get('comment_lines', 0) / f['total_lines'] if f['total_lines'] else 0
+                issues.append(f"- `{f['path']}`: comment density {density:.1%} (< 5%)")
+        # dead code
+        unused = analyzer.get_unused_defs()
+        if unused:
+            issues.append('## Unused (Dead) Functions/Classes')
+            for d in unused:
+                issues.append(f"- {d['type']} `{d['name']}` in `{d['file']}` (line {d['line']})")
+        # 輸出
+        if issues:
+            print('# CodeState Detected Issues\n')
+            print('\n'.join(issues))
+        else:
+            print('No major issues detected!')
         return
 
 if __name__ == "__main__":
