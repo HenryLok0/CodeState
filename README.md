@@ -71,6 +71,13 @@ codestate [directory] [options]
 | `--badges`      | Auto-detect and print project language/framework/license/CI badges for README |
 | `--readme`      | Auto-generate a README template based on analysis |
 | `--autofix-suggest`      | Suggest auto-fix patches for naming, comments, and duplicate code |
+| `--top N`               | Show only the top N files by lines or complexity |
+| `--excel`               | Export summary statistics as Excel (.xlsx) |
+| `--failures-only`       | Show only files with issues (naming, size, complexity, etc.) |
+| `--complexity-threshold`| Set custom complexity threshold for warnings |
+| `--only-lang`           | Only analyze specific file extensions, comma separated (e.g. py,js) |
+| `--file-age`            | Show file creation and last modified time |
+| `--uncommitted`         | Show stats for files with uncommitted changes (git diff) |
 
 ## Examples
 
