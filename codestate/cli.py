@@ -1247,7 +1247,6 @@ def main():
         return
     if args.complexity_graph:
         # 實作 complexity-graph: 用 ASCII bar chart 顯示所有檔案複雜度
-        from .visualizer import ascii_bar_chart
         file_cplx = [
             {'file': f['path'], 'complexity': f.get('complexity', 0)}
             for f in file_details if f.get('complexity', 0) > 0
