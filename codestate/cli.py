@@ -1037,7 +1037,6 @@ def main():
         return
     if args.compare:
         # 比較兩個資料夾的統計
-        from .analyzer import Analyzer
         from .visualizer import print_table
         dir1, dir2 = args.compare
         print(f"Comparing statistics between {dir1} and {dir2} ...")
