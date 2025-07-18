@@ -138,6 +138,7 @@ def main():
         start_time = time.time()
         for idx, cmd in enumerate(commands, 1):
             try:
+                cmd_start = time.time()  # 記錄本次指令開始時間
                 result = subprocess.run(
                     [sys.executable, '-m', 'codestate.cli'] + cmd,
                     stdout=subprocess.DEVNULL,
@@ -145,6 +146,7 @@ def main():
                     cwd=args.directory if hasattr(args, 'directory') else '.',
                     text=True
                 )
+                cmd_elapsed = time.time() - cmd_start  # 計算本次指令花費時間
                 elapsed = time.time() - start_time
                 percent_done = int(idx / total * 100)
                 avg_time = elapsed / idx if idx > 0 else 0
@@ -162,12 +164,13 @@ def main():
                 if result.returncode != 0:
                     any_error = True
                     fail_count += 1
-                    print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left")
+                    print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
                     print(result.stderr)
                 else:
                     success_count += 1
-                    print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left")
+                    print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
             except Exception as e:
+                cmd_elapsed = time.time() - cmd_start if 'cmd_start' in locals() else 0
                 any_error = True
                 fail_count += 1
                 elapsed = time.time() - start_time
@@ -184,7 +187,7 @@ def main():
                     est_str = f'{est_m}m{est_s}s'
                 else:
                     est_str = f'{est_left:.1f}s'
-                print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {elapsed:.1f}s elapsed | est {est_str} left: {e}")
+                print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left: {e}")
         # 刪除 codestate_report.xlsx
         try:
             if os.path.exists(excel_file):
