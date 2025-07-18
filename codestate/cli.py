@@ -68,6 +68,10 @@ def main():
     parser.add_argument('--file-age', action='store_true', help='Show file creation and last modified time')
     parser.add_argument('--uncommitted', action='store_true', help='Show stats for files with uncommitted changes (git diff)')
     parser.add_argument('--test', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--min-lines', type=int, help='Only show files with total lines >= N')
+    parser.add_argument('--open', type=str, help='Show detailed analysis for a single file')
+    parser.add_argument('--compare', nargs=2, metavar=('DIR1', 'DIR2'), help='Compare statistics between two directories')
+    parser.add_argument('--blame', type=str, help='Show git blame statistics for a file')
     args = parser.parse_args()
 
     # --test 隱藏自動測試分支
@@ -110,6 +114,10 @@ def main():
             ['--openapi', '--output', nullfile],
             ['--version'],
             ['--list-extensions'],
+            ['--min-lines', '10'],
+            ['--open', 'codestate/cli.py'],
+            ['--blame', 'codestate/cli.py'],
+            ['--compare', 'codestate', 'tests'],
         ]
         any_error = False
         success_count = 0
@@ -1007,6 +1015,85 @@ def main():
         headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
         from .visualizer import print_table
         print_table(data, headers=headers, title='File List:')
+
+    # 新增功能參數入口
+    if args.min_lines is not None:
+        # --min-lines 功能實作
+        filtered = [f for f in file_details if f.get('total_lines', 0) >= args.min_lines]
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        from .visualizer import print_table
+        print_table(filtered, headers=headers, title=f'Files with total_lines >= {args.min_lines}:')
+        return
+    if args.open:
+        # 單檔案詳細分析
+        file_path = args.open
+        file_stat = next((f for f in file_details if f['path'] == file_path or f['path'].endswith(file_path)), None)
+        if not file_stat:
+            print(f"[codestate] File not found in analysis: {file_path}")
+            return
+        headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
+        from .visualizer import print_table
+        print_table([file_stat], headers=headers, title=f'Detailed analysis for {file_path}:')
+        return
+    if args.compare:
+        # 比較兩個資料夾的統計
+        from .analyzer import Analyzer
+        from .visualizer import print_table
+        dir1, dir2 = args.compare
+        print(f"Comparing statistics between {dir1} and {dir2} ...")
+        analyzer1 = Analyzer(dir1)
+        stats1 = analyzer1.analyze()
+        analyzer2 = Analyzer(dir2)
+        stats2 = analyzer2.analyze()
+        # 取所有出現過的副檔名
+        all_exts = set(stats1.keys()) | set(stats2.keys())
+        rows = []
+        for ext in sorted(all_exts):
+            s1 = stats1.get(ext, {})
+            s2 = stats2.get(ext, {})
+            row = {
+                'ext': ext,
+                f'{dir1} file_count': s1.get('file_count', 0),
+                f'{dir2} file_count': s2.get('file_count', 0),
+                'file_count Δ': s2.get('file_count', 0) - s1.get('file_count', 0),
+                f'{dir1} total_lines': s1.get('total_lines', 0),
+                f'{dir2} total_lines': s2.get('total_lines', 0),
+                'total_lines Δ': s2.get('total_lines', 0) - s1.get('total_lines', 0),
+                f'{dir1} comment_lines': s1.get('comment_lines', 0),
+                f'{dir2} comment_lines': s2.get('comment_lines', 0),
+                'comment_lines Δ': s2.get('comment_lines', 0) - s1.get('comment_lines', 0),
+                f'{dir1} function_count': s1.get('function_count', 0),
+                f'{dir2} function_count': s2.get('function_count', 0),
+                'function_count Δ': s2.get('function_count', 0) - s1.get('function_count', 0),
+            }
+            rows.append(row)
+        headers = ['ext',
+                   f'{dir1} file_count', f'{dir2} file_count', 'file_count Δ',
+                   f'{dir1} total_lines', f'{dir2} total_lines', 'total_lines Δ',
+                   f'{dir1} comment_lines', f'{dir2} comment_lines', 'comment_lines Δ',
+                   f'{dir1} function_count', f'{dir2} function_count', 'function_count Δ']
+        print_table(rows, headers=headers, title=f'Comparison: {dir1} vs {dir2}')
+        return
+    if args.blame:
+        # 顯示 git blame 統計
+        import subprocess
+        from collections import Counter
+        file_path = args.blame
+        try:
+            cmd = ['git', 'blame', '--line-porcelain', file_path]
+            out = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
+            authors = [line[7:] for line in out.splitlines() if line.startswith('author ')]
+            counter = Counter(authors)
+            total = sum(counter.values())
+            print(f'Git blame statistics for {file_path}:')
+            print('Author           | Lines | Percent')
+            print('-----------------+-------+--------')
+            for author, count in counter.most_common():
+                percent = count / total * 100 if total else 0
+                print(f'{author[:17]:17} | {count:5} | {percent:6.2f}%')
+        except Exception as e:
+            print(f'[codestate] Failed to run git blame: {e}')
+        return
 
 if __name__ == "__main__":
     main() 

@@ -36,6 +36,7 @@ codestate [directory] [options]
 | `--uncommitted`        | Show stats for files with uncommitted changes (git diff) |
 | `--size`               | Show each file's size in bytes as a table |
 | `--list-extensions`    | List all file extensions found in the project |
+| `--min-lines <N>`      | Only show files with total lines >= N |
 | **[Statistics & Detailed Analysis]** |             |
 | `--details`            | Show detailed statistics for each file |
 | `--dup`                | Show duplicate code blocks (5+ lines) |
@@ -51,6 +52,9 @@ codestate [directory] [options]
 | `--refactor-suggest`   | Show files/functions that are refactor candidates, with reasons |
 | `--autofix-suggest`    | Suggest auto-fix patches for naming, comments, and duplicate code |
 | `--complexity-threshold <value>` | Set custom complexity threshold for warnings (**requires a value**, e.g. --complexity-threshold 5) |
+| `--open <file>`        | Show detailed analysis for a single file |
+| `--blame <file>`       | Show git blame statistics for a file |
+| `--compare <dir1> <dir2>` | Compare statistics between two directories |
 | **[Output / Reports]** |             |
 | `--html`               | Export result as HTML table |
 | `--md`                 | Export result as Markdown table |
