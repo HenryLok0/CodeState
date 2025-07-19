@@ -609,7 +609,7 @@ class Analyzer:
                         if skip_class:
                             continue
                         defined.add((node.name, path, node.lineno, type(node).__name__))
-                    # Find all function/class usage (calls, instantiations)
+                    # Find all function/class usage (calls, instantiations, and function references)
                     if isinstance(node, ast.Call):
                         if hasattr(node.func, 'id'):
                             used.add(node.func.id)
@@ -617,6 +617,13 @@ class Analyzer:
                             used.add(node.func.attr)
                     if isinstance(node, ast.Attribute):
                         used.add(node.attr)
+                    # Check for function references in arguments (e.g., executor.submit(func_name))
+                    if isinstance(node, ast.Call) and hasattr(node, 'args'):
+                        for arg in node.args:
+                            if isinstance(arg, ast.Name):
+                                used.add(arg.id)
+                            elif isinstance(arg, ast.Attribute):
+                                used.add(arg.attr)
             except Exception as e:
                 print(f"AST parse error in {path}: {e}")
                 continue
