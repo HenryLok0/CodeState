@@ -79,6 +79,155 @@ def main():
     parser.add_argument('--test-coverage', type=str, help='Show test coverage analysis from a coverage.xml file')
     args = parser.parse_args()
 
+    # Handle quick commands that don't need analysis first
+    if args.version:
+        import sys
+        print(f'codestate version {__version__}')
+        sys.exit(0)
+    
+    if args.list_extensions:
+        import sys
+        analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
+        exts = {}
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
+        print('File extensions found in project:')
+        for ext, count in sorted(exts.items()):
+            print(f'{ext} ({count})')
+        sys.exit(0)
+    
+    # Handle tree view without full analysis
+    if args.tree:
+        from .visualizer import print_ascii_tree
+        print('Project structure:')
+        print_ascii_tree(args.directory)
+        return
+    
+    # Handle structure mermaid without full analysis
+    if args.structure_mermaid:
+        import os
+        mermaid = generate_mermaid_structure(args.directory)
+        if args.output:
+            abs_path = os.path.abspath(args.output)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(mermaid)
+            print(f'Mermaid structure diagram written to {abs_path}')
+        else:
+            print(mermaid)
+        return
+    
+    # Handle badges detection without full analysis
+    if args.badges:
+        import os
+        # Auto-detect language
+        exts = set()
+        analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                exts.add(file_path.suffix.lower())
+        
+        # Count lines per extension for better language detection
+        ext_lines = {}
+        for file_path in analyzer._iter_files(args.directory):
+            if file_path.suffix:
+                ext = file_path.suffix.lower()
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = len(f.readlines())
+                    ext_lines[ext] = ext_lines.get(ext, 0) + lines
+                except Exception:
+                    pass
+        
+        lang_map = {
+            '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.java': 'Java', '.go': 'Go', '.rb': 'Ruby', '.php': 'PHP', '.cs': 'C%23', '.cpp': 'C%2B%2B', '.c': 'C', '.rs': 'Rust', '.kt': 'Kotlin', '.swift': 'Swift', '.m': 'Objective-C', '.scala': 'Scala', '.sh': 'Shell', '.pl': 'Perl', '.r': 'R', '.dart': 'Dart', '.jl': 'Julia', '.lua': 'Lua', '.hs': 'Haskell', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML', '.md': 'Markdown'
+        }
+        
+        # Use line count to determine main language
+        main_lang = 'Unknown'
+        if ext_lines:
+            # Find the extension with most lines
+            main_ext = max(ext_lines, key=ext_lines.get)
+            main_lang = lang_map.get(main_ext, main_ext.lstrip('.').capitalize())
+        
+        # Detect framework, license, CI, etc.
+        framework = None
+        req_path = os.path.join(args.directory, 'requirements.txt')
+        if os.path.exists(req_path):
+            with open(req_path, 'r', encoding='utf-8', errors='ignore') as f:
+                reqs = f.read().lower()
+            if 'django' in reqs:
+                framework = 'Django'
+            elif 'flask' in reqs:
+                framework = 'Flask'
+            elif 'fastapi' in reqs:
+                framework = 'FastAPI'
+            elif 'torch' in reqs or 'tensorflow' in reqs:
+                framework = 'ML'
+        
+        license_type = None
+        for lic_file in ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'license', 'license.txt']:
+            lic_path = os.path.join(args.directory, lic_file)
+            if os.path.exists(lic_path):
+                with open(lic_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lic_text = f.read().lower()
+                if 'mit license' in lic_text:
+                    license_type = 'MIT'
+                elif 'apache license' in lic_text:
+                    license_type = 'Apache'
+                elif 'gpl' in lic_text:
+                    license_type = 'GPL'
+                elif 'bsd' in lic_text:
+                    license_type = 'BSD'
+                elif 'mozilla public license' in lic_text:
+                    license_type = 'MPL'
+                else:
+                    license_type = 'Custom'
+                break
+        
+        print('\nRecommended README badges:')
+        badge_md = []
+        
+        # Detect GitHub repo for badges
+        github_repo = None
+        git_config_path = os.path.join(args.directory, '.git', 'config')
+        if os.path.exists(git_config_path):
+            with open(git_config_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            url = None
+            for i, line in enumerate(lines):
+                if '[remote "origin"]' in line:
+                    for j in range(i+1, min(i+6, len(lines))):
+                        if 'url =' in lines[j]:
+                            url = lines[j].split('=',1)[1].strip()
+                            break
+                if url:
+                    break
+            if url:
+                import re
+                m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
+                if m:
+                    github_repo = m.group(1)
+        
+        # Add GitHub badges if repo detected
+        if github_repo:
+            badge_md.append(f'[![Code Size](https://img.shields.io/github/languages/code-size/{github_repo}?style=flat-square&logo=github)](https://github.com/{github_repo})')
+            badge_md.append(f'[![Stars](https://img.shields.io/github/stars/{github_repo}?style=flat-square)](https://github.com/{github_repo}/stargazers)')
+        
+        if main_lang != 'Unknown':
+            badge_md.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
+        if framework:
+            badge_md.append(f'![Framework](https://img.shields.io/badge/framework-{framework}-brightgreen?style=flat-square)')
+        if license_type:
+            badge_md.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
+        if badge_md:
+            for b in badge_md:
+                print(b)
+            print('\nYou can copy and paste the above Markdown into your README.')
+        else:
+            print('No badges detected.')
+        return
+
     # --test 隱藏自動測試分支
     if getattr(args, 'test', False):
         import subprocess
@@ -346,34 +495,12 @@ def main():
         print_table(data, headers=headers, title='Filtered File List:')
         return
 
-    # 檔案分析完畢，進行輸出步驟
-    if args.tree:
-        from .visualizer import print_ascii_tree
-        print('Project structure:')
-        print_ascii_tree(args.directory)
-        return
-
     # Prepare data for visualization
     data = []
     for ext, info in stats.items():
         item = {'ext': ext}
         item.update(info)
         data.append(item)
-
-    if args.version:
-        import sys
-        print(f'codestate version {__version__}')
-        sys.exit(0)
-    if args.list_extensions:
-        import sys
-        exts = {}
-        for file_path in analyzer._iter_files(args.directory):
-            if file_path.suffix:
-                exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
-        print('File extensions found in project:')
-        for ext, count in sorted(exts.items()):
-            print(f'{ext} ({count})')
-        sys.exit(0)
 
     if args.html:
         import os
@@ -439,18 +566,6 @@ def main():
                 print(f"{s['path']} (lines: {s['total_lines']}, complexity: {s['complexity']}, avg_func_len: {s['function_avg_length']:.1f}, comment_density: {s['comment_density']:.1%}, TODOs: {s['todo_count']})")
                 for reason in s['reasons']:
                     print(f"  - {reason}")
-        return
-
-    if args.structure_mermaid:
-        import os
-        mermaid = generate_mermaid_structure(args.directory)
-        if args.output:
-            abs_path = os.path.abspath(args.output)
-            with open(args.output, 'w', encoding='utf-8') as f:
-                f.write(mermaid)
-            print(f'Mermaid structure diagram written to {abs_path}')
-        else:
-            print(mermaid)
         return
 
     if args.openapi:
@@ -945,110 +1060,7 @@ def main():
         print(f'Sustainability badge SVG written to {os.path.abspath(output_path)}')
         return
 
-    if args.badges:
-        import os
-        # Auto-detect language
-        exts = set()
-        for file_path in analyzer._iter_files(args.directory):
-            if file_path.suffix:
-                exts.add(file_path.suffix.lower())
-        lang_map = {
-            '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.java': 'Java', '.go': 'Go', '.rb': 'Ruby', '.php': 'PHP', '.cs': 'C%23', '.cpp': 'C%2B%2B', '.c': 'C', '.rs': 'Rust', '.kt': 'Kotlin', '.swift': 'Swift', '.m': 'Objective-C', '.scala': 'Scala', '.sh': 'Shell', '.pl': 'Perl', '.r': 'R', '.dart': 'Dart', '.jl': 'Julia', '.lua': 'Lua', '.hs': 'Haskell', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML', '.md': 'Markdown'
-        }
-        lang_count = {}
-        for ext in exts:
-            lang = lang_map.get(ext, ext.lstrip('.').capitalize())
-            lang_count[lang] = lang_count.get(lang, 0) + 1
-        main_lang = max(lang_count, key=lang_count.get) if lang_count else 'Unknown'
-        framework = None
-        req_path = os.path.join(args.directory, 'requirements.txt')
-        if os.path.exists(req_path):
-            with open(req_path, 'r', encoding='utf-8', errors='ignore') as f:
-                reqs = f.read().lower()
-            if 'django' in reqs:
-                framework = 'Django'
-            elif 'flask' in reqs:
-                framework = 'Flask'
-            elif 'fastapi' in reqs:
-                framework = 'FastAPI'
-            elif 'torch' in reqs or 'tensorflow' in reqs:
-                framework = 'ML'
-        pkg_path = os.path.join(args.directory, 'package.json')
-        if os.path.exists(pkg_path):
-            import json as _json
-            with open(pkg_path, 'r', encoding='utf-8', errors='ignore') as f:
-                pkg = _json.load(f)
-            deps = str(pkg.get('dependencies', {})).lower() + str(pkg.get('devDependencies', {})).lower()
-            if 'react' in deps:
-                framework = 'React'
-            elif 'vue' in deps:
-                framework = 'Vue.js'
-            elif 'next' in deps:
-                framework = 'Next.js'
-            elif 'nuxt' in deps:
-                framework = 'Nuxt.js'
-        license_type = None
-        for lic_file in ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'license', 'license.txt']:
-            lic_path = os.path.join(args.directory, lic_file)
-            if os.path.exists(lic_path):
-                with open(lic_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lic_text = f.read().lower()
-                if 'mit license' in lic_text:
-                    license_type = 'MIT'
-                elif 'apache license' in lic_text:
-                    license_type = 'Apache'
-                elif 'gpl' in lic_text:
-                    license_type = 'GPL'
-                elif 'bsd' in lic_text:
-                    license_type = 'BSD'
-                elif 'mozilla public license' in lic_text:
-                    license_type = 'MPL'
-                else:
-                    license_type = 'Custom'
-                break
-        ci = None
-        gha_path = os.path.join(args.directory, '.github', 'workflows')
-        if os.path.isdir(gha_path) and any(f.endswith('.yml') or f.endswith('.yaml') for f in os.listdir(gha_path)):
-            ci = 'GitHub Actions'
-        github_repo = None
-        git_config_path = os.path.join(args.directory, '.git', 'config')
-        if os.path.exists(git_config_path):
-            with open(git_config_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            url = None
-            for i, line in enumerate(lines):
-                if '[remote "origin"]' in line:
-                    for j in range(i+1, min(i+6, len(lines))):
-                        if 'url =' in lines[j]:
-                            url = lines[j].split('=',1)[1].strip()
-                            break
-                if url:
-                    break
-            if url:
-                import re
-                m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
-                if m:
-                    github_repo = m.group(1)
-        print('\nRecommended README badges:')
-        badge_md = []
-        if github_repo:
-            badge_md.append(f'[![Code Size](https://img.shields.io/github/languages/code-size/{github_repo}?style=flat-square&logo=github)](https://github.com/{github_repo})')
-            badge_md.append(f'[![Stars](https://img.shields.io/github/stars/{github_repo}?style=flat-square)](https://github.com/{github_repo}/stargazers)')
-        if main_lang != 'Unknown':
-            badge_md.append(f'![Language](https://img.shields.io/badge/language-{main_lang}-blue?style=flat-square)')
-        if framework:
-            badge_md.append(f'![Framework](https://img.shields.io/badge/framework-{framework}-brightgreen?style=flat-square)')
-        if license_type:
-            badge_md.append(f'![License](https://img.shields.io/badge/license-{license_type}-yellow?style=flat-square)')
-        if ci:
-            badge_md.append(f'![CI](https://img.shields.io/badge/CI-{ci}-blue?style=flat-square)')
-        if badge_md:
-            for b in badge_md:
-                print(b)
-            print('\nYou can copy and paste the above Markdown into your README.')
-        else:
-            print('No badges detected.')
-        return
+    # fallback: if data has content and no other output options, print table
 
     # fallback: if data has content and no other output options, print table
     if data and not any([
