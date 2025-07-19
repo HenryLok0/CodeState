@@ -576,6 +576,8 @@ def main():
     if args.size:
         from .visualizer import print_table
         file_details = analyzer.get_file_details_with_size()
+        # 依照 size 由大到小排序
+        file_details = sorted(file_details, key=lambda x: x.get('size', 0), reverse=True)
         headers = ["path", "ext", "size", "total_lines", "comment_lines", "function_count"]
         print_table(file_details, headers=headers, title="File Sizes and Stats")
         return
