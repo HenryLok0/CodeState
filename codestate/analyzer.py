@@ -579,14 +579,37 @@ class Analyzer:
                 with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                     source = f.read()
                     tree = ast.parse(source, filename=path)
-                # Collect all function/class decorators
+                # Collect all function/class decorators and Flask-specific patterns
                 route_func_lines = set()
+                flask_decorated_funcs = set()
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef) and node.decorator_list:
                         for dec in node.decorator_list:
                             # Detecting Flask route decorators
                             if hasattr(dec, 'attr') and dec.attr in ['route', 'get', 'post', 'put', 'delete', 'patch']:
                                 route_func_lines.add(node.lineno)
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask error handlers
+                            elif hasattr(dec, 'attr') and dec.attr in ['errorhandler', 'app_errorhandler']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask-Login decorators
+                            elif hasattr(dec, 'attr') and dec.attr in ['user_loader', 'unauthorized_handler']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask shell context processors
+                            elif hasattr(dec, 'attr') and dec.attr in ['shell_context_processor']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask template filters
+                            elif hasattr(dec, 'attr') and dec.attr in ['template_filter']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask before/after request handlers
+                            elif hasattr(dec, 'attr') and dec.attr in ['before_request', 'after_request', 'teardown_request']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask-WTF form validation methods
+                            elif hasattr(dec, 'attr') and dec.attr in ['validates']:
+                                flask_decorated_funcs.add(node.name)
+                            # Detecting Flask-SQLAlchemy model methods
+                            elif hasattr(dec, 'attr') and dec.attr in ['hybrid_property', 'hybrid_method']:
+                                flask_decorated_funcs.add(node.name)
                 for node in ast.walk(tree):
                     # Exclude special methods, test functions, migrations, and Flask routes
                     if isinstance(node, ast.FunctionDef):
@@ -597,14 +620,26 @@ class Analyzer:
                             continue
                         if node.lineno in route_func_lines:
                             continue
+                        # Exclude Flask-decorated functions
+                        if node.name in flask_decorated_funcs:
+                            continue
+                        # Exclude common Flask form validation method names
+                        if node.name.startswith('validate_'):
+                            continue
+                        # Exclude common Flask model method names
+                        if node.name in ['avatar', 'load_user', 'make_shell_context']:
+                            continue
                         defined.add((node.name, path, node.lineno, type(node).__name__))
                     elif isinstance(node, ast.ClassDef):
                         # Exclude common test/form/ORM categories
                         skip_class = False
                         for base in node.bases:
-                            if hasattr(base, 'id') and base.id in ['TestCase', 'Form', 'Model', 'Config', 'Base', 'object']:
+                            if hasattr(base, 'id') and base.id in ['TestCase', 'Form', 'Model', 'Config', 'Base', 'object', 'db.Model']:
                                 skip_class = True
                         if node.name.startswith('Test') or node.name.endswith('Form') or node.name.endswith('Model') or node.name.endswith('Config'):
+                            skip_class = True
+                        # Exclude Flask-SQLAlchemy models
+                        if any(hasattr(base, 'id') and 'Model' in base.id for base in node.bases if hasattr(base, 'id')):
                             skip_class = True
                         if skip_class:
                             continue
