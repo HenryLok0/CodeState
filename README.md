@@ -23,6 +23,7 @@ codestate [directory] [options]
 # Tip: For large projects, use --cache on the first run to build the cache for much faster repeated analysis
 codestate --cache
 # After the cache is built, subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache
+# If there is no cache data, every command will scan the entire project again, which can be very slow for large projects.
 codestate --details
 # To rebuild the cache (e.g., after major refactoring or if the cache is outdated), delete the cache folder
 codestate --cache-delete
@@ -172,7 +173,7 @@ Thank you to all contributors and the open-source community for your support.
 
 **Q: Why is `--cache` recommended for large projects?**
 
-A: For large codebases (thousands of files or hundreds of thousands of lines), full analysis can be slow. Using `--cache` on the first run builds a cache, so subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache and be much faster—often 10x or more. This is especially useful for monorepos, CI/CD, and teams.
+A: For large codebases (thousands of files or hundreds of thousands of lines), full analysis can be slow. Using `--cache` on the first run builds a cache, so subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache and be much faster—often 10x or more. **If there is no cache, every command will scan the entire project again, which can be extremely slow for big projects.** This is especially useful for monorepos, CI/CD, and teams.
 
 **Q: When should I use `--cache-delete`?**
 
