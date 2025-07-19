@@ -21,7 +21,7 @@ pip install codestate
 codestate [directory] [options]
 
 # Tip: For large projects, use --cache on the first run to build the cache for much faster repeated analysis
-codestate --cache --details
+codestate --cache
 # After the cache is built, subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache
 codestate --details
 # To rebuild the cache (e.g., after major refactoring or if the cache is outdated), delete the cache folder
