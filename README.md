@@ -19,7 +19,10 @@ pip install codestate
 ```bash
 # Basic usage
 codestate [directory] [options]
+```
 
+### Cache Options (Highly recommended for large projects)
+```bash
 # Tip: For large projects, use --cache on the first run to build the cache for much faster repeated analysis
 codestate --cache
 # After the cache is built, subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache
@@ -168,13 +171,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 If you have questions or need help, please open an issue on GitHub.
 
 Thank you to all contributors and the open-source community for your support.
-
-## FAQ
-
-**Q: Why is `--cache` recommended for large projects?**
-
-A: For large codebases (thousands of files or hundreds of thousands of lines), full analysis can be slow. Using `--cache` on the first run builds a cache, so subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache and be much faster—often 10x or more. **If there is no cache, every command will scan the entire project again, which can be extremely slow for big projects.** This is especially useful for monorepos, CI/CD, and teams.
-
-**Q: When should I use `--cache-delete`?**
-
-A: Use `--cache-delete` to clear the cache if you have done major refactoring, moved files, or suspect the cache is outdated. The next analysis will automatically rebuild the cache.
