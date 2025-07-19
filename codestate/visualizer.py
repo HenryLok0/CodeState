@@ -200,6 +200,8 @@ def print_table(rows, headers=None, title=None):
     """
     Print a list of dicts as a pretty aligned table.
     """
+    # 過濾掉 None
+    rows = [r for r in rows if r is not None]
     if not rows:
         print("No data to display.")
         return
@@ -228,6 +230,9 @@ def print_table(rows, headers=None, title=None):
     # Format size column if present
     formatted_rows = []
     avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
+    # 需要格式化為小數點後一位的欄位
+    float_fields = set(['detail_workload_score', 'simple_workload_score', 'avg_lines_per_commit'])
+    # 也自動偵測所有 float 欄位
     for row in rows:
         new_row = dict(row)
         if 'size' in new_row:
@@ -236,7 +241,8 @@ def print_table(rows, headers=None, title=None):
             except Exception:
                 pass
         for k in new_row:
-            if k in avg_fields and isinstance(new_row[k], float):
+            # 只要是 float 就自動格式化為小數點後一位
+            if (k in avg_fields or k in float_fields or isinstance(new_row[k], float)) and isinstance(new_row[k], float):
                 new_row[k] = f"{new_row[k]:.1f}"
         formatted_rows.append(new_row)
     col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]

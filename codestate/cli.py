@@ -5,11 +5,15 @@ import sys
 import argparse
 import json
 import os
+import datetime
 from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure, generate_lang_card_svg, generate_sustainability_badge_svg
 from . import __version__
 
 def main():
+    import time
+    if '--cache' in sys.argv:
+        main._cache_start_time = time.time()
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description='CodeState: Codebase statistics CLI tool')
     parser.add_argument('directory', nargs='?', default='.', help='Target directory to analyze')
@@ -67,6 +71,7 @@ def main():
     parser.add_argument('--file-age', action='store_true', help='Show file creation and last modified time')
     parser.add_argument('--uncommitted', action='store_true', help='Show stats for files with uncommitted changes (git diff)')
     parser.add_argument('--test', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--test-show', action='store_true', help='Run all test commands and show all output (not hidden)')
     parser.add_argument('--min-lines', type=int, help='Only show files with total lines >= N')
     parser.add_argument('--open', type=str, help='Show detailed analysis for a single file')
     parser.add_argument('--compare', nargs=2, metavar=('DIR1', 'DIR2'), help='Compare statistics between two directories')
@@ -77,16 +82,30 @@ def main():
     parser.add_argument('--complexity-graph', action='store_true', help='Show an interactive complexity graph (feature)')
     parser.add_argument('--refactor-map', action='store_true', help='Show a map of files/functions that are refactor candidates')
     parser.add_argument('--test-coverage', type=str, help='Show test coverage analysis from a coverage.xml file')
+    parser.add_argument('--cache', action='store_true', help='Enable cache for faster repeated analysis')
+    parser.add_argument('--cache-delete', action='store_true', help='Delete all cache data in .codestate_cache and exit')
     args = parser.parse_args()
 
-    # Handle quick commands that don't need analysis first
-    if args.version:
-        import sys
+    # Handle cache delete
+    if getattr(args, 'cache_delete', False):
+        import shutil
+        import os
+        cache_dir = os.path.join(args.directory, '.codestate_cache')
+        if os.path.exists(cache_dir):
+            try:
+                shutil.rmtree(cache_dir)
+                print(f"Deleted cache folder: {cache_dir}")
+            except Exception as e:
+                print(f"Failed to delete cache folder: {e}")
+        else:
+            print(f"No cache folder found at: {cache_dir}")        
+        sys.exit(0)
+    
+    if args.version:        
         print(f'codestate version {__version__}')
         sys.exit(0)
     
     if args.list_extensions:
-        import sys
         analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
         exts = {}
         for file_path in analyzer._iter_files(args.directory):
@@ -229,9 +248,8 @@ def main():
         return
 
     # --test 隱藏自動測試分支
-    if getattr(args, 'test', False):
+    if getattr(args, 'test', False) or getattr(args, 'test_show', False):
         import subprocess
-        import sys
         import os
         import platform
         import time
@@ -288,13 +306,22 @@ def main():
         for idx, cmd in enumerate(commands, 1):
             try:
                 cmd_start = time.time()  # 記錄本次指令開始時間
-                result = subprocess.run(
-                    [sys.executable, '-m', 'codestate.cli'] + cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                    cwd=args.directory if hasattr(args, 'directory') else '.',
-                    text=True
-                )
+                if getattr(args, 'test_show', False):
+                    # 顯示所有輸出
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'codestate.cli'] + cmd,
+                        cwd=args.directory if hasattr(args, 'directory') else '.',
+                        text=True
+                    )
+                else:
+                    # 隱藏 stdout，只顯示 stderr
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'codestate.cli'] + cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        cwd=args.directory if hasattr(args, 'directory') else '.',
+                        text=True
+                    )
                 cmd_elapsed = time.time() - cmd_start  # 計算本次指令花費時間
                 elapsed = time.time() - start_time
                 percent_done = int(idx / total * 100)
@@ -314,7 +341,8 @@ def main():
                     any_error = True
                     fail_count += 1
                     print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
-                    print(result.stderr)
+                    if not getattr(args, 'test_show', False):
+                        print(result.stderr)
                 else:
                     success_count += 1
                     print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
@@ -385,10 +413,23 @@ def main():
             print(f'Multi-project JSON written to {abs_path}')
         return
 
-    analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
+    # Analyzer 建立時傳入 use_cache 參數
+    # use_cache_write: 只有 --cache 時才會寫入快取
+    analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude, use_cache_write=getattr(args, 'cache', False))
     stats = analyzer.analyze(regex_rules=regex_rules)
     file_details = analyzer.get_file_details()
-    data = file_details
+    data = file_details  # 保證 data 變數一定有值，避免 UnboundLocalError
+    # 若是 --cache 模式，分析結束後印出完成時間
+    if getattr(args, 'cache', False):
+        import time
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        elapsed = None
+        if hasattr(main, '_cache_start_time'):
+            elapsed = time.time() - main._cache_start_time
+        if elapsed is None:
+            print(f'Cache build finished at {now}')
+        else:
+            print(f'Cache build finished at {now} (elapsed: {elapsed:.1f}s)')
 
     # --only-lang 過濾
     if args.only_lang:
@@ -431,8 +472,7 @@ def main():
 
     # --file-age 顯示
     if args.file_age:
-        import os
-        import datetime
+        import os    
         for f in data:
             try:
                 stat = os.stat(os.path.abspath(f['path']))
@@ -666,7 +706,6 @@ def main():
         return
 
     # Only show default bar chart if no arguments (just 'codestate')
-    import sys
     if len(sys.argv) == 1:
         ascii_bar_chart(data, value_key='total_lines', label_key='ext', title='Lines of Code per File Type')
         print_comment_density(data, label_key='ext')
@@ -684,10 +723,14 @@ def main():
     if args.maxmin:
         mm = analyzer.get_max_min_stats()
         from .visualizer import print_table
-        print("\nFile with most lines:")
-        print_table([mm['max_file']], title="Max File")
-        print("File with least lines:")
-        print_table([mm['min_file']], title="Min File")
+        if mm['max_file']:
+            print_table([mm['max_file']], title="Max File")
+        else:
+            print("No max file found.")
+        if mm['min_file']:
+            print_table([mm['min_file']], title="Min File")
+        else:
+            print("No min file found.")
         return
     if args.authors:
         authors = analyzer.get_git_authors()
@@ -881,7 +924,6 @@ def main():
             print(csv_str)
 
     if args.ci:
-        import sys
         # Criteria: health score < 80, or any naming violations, large files/functions, or dead code
         report = analyzer.get_health_report()
         naming_violations = analyzer.get_naming_violations()
@@ -1061,16 +1103,7 @@ def main():
         return
 
     # fallback: if data has content and no other output options, print table
-
-    # fallback: if data has content and no other output options, print table
-    if data and not any([
-        args.details, args.html, args.csv, args.excel, args.top, args.failures_only, args.file_age, args.uncommitted,
-        args.md, args.json, args.size, args.trend, args.refactor_suggest, args.structure_mermaid, args.openapi,
-        args.style_check, args.contributors, args.contributors_detail, args.security, args.groupdir, args.groupext,
-        args.groupdir_csv, args.groupext_csv, args.ci, args.summary, args.readme, args.autofix_suggest, args.lang_card_svg,
-        args.badge_sustainability, args.badges, args.naming, args.apidoc, args.dup, args.maxmin, args.authors, args.langdist,
-        args.complexitymap, args.deadcode, args.typestats, args.multi
-    ]):
+    if data and len(sys.argv) == 1:
         headers = ["path", "ext", "total_lines", "comment_lines", "function_count", "complexity", "function_avg_length", "todo_count", "blank_lines", "comment_only_lines", "code_lines"]
         from .visualizer import print_table
         print_table(data, headers=headers, title='File List:')
@@ -1172,8 +1205,7 @@ def main():
 
     if args.churn is not None:
         # 實作 churn: 顯示最近 N 天內最常變動的檔案
-        import subprocess
-        import datetime
+        import subprocess        
         from collections import Counter
         days = args.churn if args.churn else 30
         try:

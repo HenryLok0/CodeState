@@ -7,6 +7,7 @@ from concurrent.futures import as_completed
 import hashlib
 import subprocess
 import ast
+import json
 # Add pathspec for .gitignore support
 try:
     import pathspec
@@ -23,13 +24,15 @@ class Analyzer:
     Analyzer for code statistics: lines of code, comment density, function complexity.
     Now supports .gitignore exclusion via pathspec.
     """
-    def __init__(self, root_dir, file_types=None, exclude_dirs=None):
+    def __init__(self, root_dir, file_types=None, exclude_dirs=None, use_cache_write=False):
         # root_dir: the directory to analyze
         # file_types: list of file extensions to include (e.g., ['.py', '.js'])
         # exclude_dirs: list of directory names to exclude
         self.root_dir = pathlib.Path(root_dir)
         self.file_types = file_types  # None means auto-detect all extensions
+        # Always exclude .codestate_cache (cache folder)
         self.exclude_dirs = set(exclude_dirs or ['.git', 'venv', 'node_modules'])
+        self.exclude_dirs.add('.codestate_cache')
         self.stats = defaultdict(lambda: {
             'file_count': 0,
             'total_lines': 0,
@@ -53,8 +56,29 @@ class Analyzer:
         elif not pathspec and gitignore_path.exists():
             print("[codestate] Warning: pathspec not installed, .gitignore will be ignored. Run 'pip install pathspec' for better results.")
 
+        # --- Cache mechanism ---
+        self.cache_path = os.path.join(str(self.root_dir), '.codestate_cache', 'cache.json')
+        self.use_cache_write = use_cache_write  # True: 會寫入快取
+        self.use_cache_read = os.path.exists(self.cache_path)  # True: 只要有快取檔就能讀
+        self.cache = {}
+        if self.use_cache_read:
+            try:
+                with open(self.cache_path, 'r', encoding='utf-8') as f:
+                    self.cache = json.load(f)
+            except Exception:
+                self.cache = {}
+
     def analyze(self, regex_rules=None, show_progress=False, file_callback=None):
         # Recursively scan files and collect statistics (multithreaded, thread-safe aggregation)
+        # --- 若啟用 read-only cache 且快取有資料，直接回傳快取內容 ---
+        if self.use_cache_read and not self.use_cache_write and self.cache.get('_stats') and self.cache.get('_file_details'):
+            self.stats = self.cache['_stats']
+            self.file_details = self.cache['_file_details']
+            # 其餘分析結果也一併還原（如 health_report 等）
+            for attr in ['duplicates', 'security_issues', 'health_report', 'large_warnings', 'naming_violations', 'api_doc_summaries', 'unused_defs', 'api_param_type_stats', 'openapi_spec', 'style_issues', 'contributor_stats', 'git_hotspots', 'git_authors', 'grouped_by_dir', 'grouped_by_ext', 'advanced_security_issues', 'refactor_suggestions', 'file_trends']:
+                if f'_{attr}' in self.cache:
+                    setattr(self, attr, self.cache[f'_{attr}'])
+            return self.stats
         if self.file_types is None:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
         else:
@@ -123,12 +147,38 @@ class Analyzer:
         if self.file_details:
             self.max_file = max(self.file_details, key=lambda x: x['total_lines'])
             self.min_file = min(self.file_details, key=lambda x: x['total_lines'])
-        else:
-            self.max_file = self.min_file = None
+        # --- Save cache after analysis (只有 use_cache_write=True 才會寫入) ---
+        if self.use_cache_write:
+            # 確保主要分析結果存入 cache
+            self.cache['_stats'] = self.stats
+            self.cache['_file_details'] = self.file_details
+            # 也快取常用分析結果
+            for attr in ['duplicates', 'security_issues', 'health_report', 'large_warnings', 'naming_violations', 'api_doc_summaries', 'unused_defs', 'api_param_type_stats', 'openapi_spec', 'style_issues', 'contributor_stats', 'git_hotspots', 'git_authors', 'grouped_by_dir', 'grouped_by_ext', 'advanced_security_issues', 'refactor_suggestions', 'file_trends']:
+                if hasattr(self, attr):
+                    self.cache[f'_{attr}'] = getattr(self, attr)
+            os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+            try:
+                with open(self.cache_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.cache, f)
+            except Exception as e:
+                print(f'[codestate] Failed to write cache: {e}')
         return self.stats
 
     def _analyze_file_threadsafe(self, file_path):
         # Returns (stat_dict, file_stat) for aggregation
+        # --- Check cache before analyzing (只有 use_cache_write=True 才會寫入/更新單檔快取) ---
+        if self.use_cache_read:
+            try:
+                statinfo = os.stat(file_path)
+                mtime = statinfo.st_mtime
+                size = statinfo.st_size
+                cache_key = str(file_path)
+                cache_entry = self.cache.get(cache_key)
+                if cache_entry and cache_entry.get('mtime') == mtime and cache_entry.get('size') == size:
+                    # Use cached result if file not changed
+                    return cache_entry['stat'], cache_entry['file_stat']
+            except Exception:
+                pass  # If stat fails, fallback to normal analysis
         ext = file_path.suffix
         total_lines = 0
         comment_lines = 0
@@ -188,6 +238,17 @@ class Analyzer:
             'code_lines': code_lines,
             'size': size
         }
+        # --- Update cache after analysis (只有 use_cache_write=True 才會寫入) ---
+        if self.use_cache_write:
+            try:
+                self.cache[cache_key] = {
+                    'mtime': mtime,
+                    'size': size,
+                    'stat': stat,
+                    'file_stat': file_stat
+                }
+            except Exception:
+                pass  # If cache update fails, ignore
         return stat, file_stat
 
     def _scan_security_issues(self):
@@ -1089,7 +1150,9 @@ class Analyzer:
 
     def get_max_min_stats(self):
         # Return file with most/least lines
-        return {'max_file': self.max_file, 'min_file': self.min_file}
+        max_file = getattr(self, 'max_file', None)
+        min_file = getattr(self, 'min_file', None)
+        return {'max_file': max_file, 'min_file': min_file}
 
     def get_file_details_with_size(self):
         # Return per-file statistics including file size

@@ -17,7 +17,15 @@ pip install codestate
 ## Usage
 
 ```bash
+# Basic usage
 codestate [directory] [options]
+
+# Tip: For large projects, use --cache on the first run to build the cache for much faster repeated analysis
+codestate --cache --details
+# After the cache is built, subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache
+codestate --details
+# To rebuild the cache (e.g., after major refactoring or if the cache is outdated), delete the cache folder
+codestate --cache-delete
 ```
 
 ## Options
@@ -38,6 +46,8 @@ codestate [directory] [options]
 | `--list-extensions`    | List all file extensions found in the project |
 | `--min-lines <N>`      | Only show files with total lines >= N |
 | `--find <keyword/regex>` | Find all lines matching a keyword or regex in the codebase |
+| `--cache`              | Build and use cache for much faster repeated analysis (highly recommended for large codebases) |
+| `--cache-delete`       | Delete all cache data in `.codestate_cache` (force rebuild cache on next run) |
 | **[Statistics & Detailed Analysis]** |             |
 | `--details`            | Show detailed statistics for each file |
 | `--dup`                | Show duplicate code blocks (5+ lines) |
@@ -157,3 +167,13 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 If you have questions or need help, please open an issue on GitHub.
 
 Thank you to all contributors and the open-source community for your support.
+
+## FAQ
+
+**Q: Why is `--cache` recommended for large projects?**
+
+A: For large codebases (thousands of files or hundreds of thousands of lines), full analysis can be slow. Using `--cache` on the first run builds a cache, so subsequent queries (like --details, --html, --contributors, etc.) will automatically use the cache and be much faster—often 10x or more. This is especially useful for monorepos, CI/CD, and teams.
+
+**Q: When should I use `--cache-delete`?**
+
+A: Use `--cache-delete` to clear the cache if you have done major refactoring, moved files, or suspect the cache is outdated. The next analysis will automatically rebuild the cache.
