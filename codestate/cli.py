@@ -10,7 +10,11 @@ from .analyzer import Analyzer
 from .visualizer import ascii_bar_chart, print_comment_density, html_report, markdown_report, ascii_pie_chart, print_ascii_tree, ascii_complexity_heatmap, generate_markdown_summary, print_table, csv_report, generate_mermaid_structure, generate_lang_card_svg, generate_sustainability_badge_svg
 from . import __version__
 
+# 在 main() 開頭加一個全域變數
+PRINT_FORCE_PLAIN = False
+
 def main():
+    global PRINT_FORCE_PLAIN
     import time
     if '--cache' in sys.argv:
         main._cache_start_time = time.time()
@@ -354,6 +358,7 @@ def main():
             output_file.write(f'CodeState CLI Test Output\n')
             output_file.write(f'Start time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
             output_file.write(f'Total commands: {total}\n\n')
+            PRINT_FORCE_PLAIN = True
         for idx, cmd in enumerate(commands, 1):
             try:
                 cmd_start = time.time()
@@ -669,7 +674,7 @@ def main():
         # 依照 size 由大到小排序
         file_details = sorted(file_details, key=lambda x: x.get('size', 0), reverse=True)
         headers = ["path", "ext", "size", "total_lines", "comment_lines", "function_count"]
-        print_table(file_details, headers=headers, title="File Sizes and Stats")
+        print_table(file_details, headers=headers, title="File Sizes and Stats:")
         return
 
     if args.trend:
