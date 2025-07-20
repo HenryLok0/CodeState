@@ -395,7 +395,8 @@ def main():
             print(f'Analyzing {d} ...')
             analyzer = Analyzer(d, file_types=args.ext, exclude_dirs=args.exclude)
             # Show progress bar when analyzing files
-            stats = analyzer.analyze(regex_rules=regex_rules)
+            show_progress = len([f for f in analyzer.iter_files(d) if f.suffix]) > 50
+            stats = analyzer.analyze(regex_rules=regex_rules, show_progress=show_progress)
             all_results[d] = stats
             data = []
             for ext, info in stats.items():
@@ -416,7 +417,9 @@ def main():
     # Analyzer 建立時傳入 use_cache 參數
     # use_cache_write: 只有 --cache 時才會寫入快取
     analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude, use_cache_write=getattr(args, 'cache', False))
-    stats = analyzer.analyze(regex_rules=regex_rules)
+    # Show progress bar when building cache or analyzing large projects
+    show_progress = getattr(args, 'cache', False) or len([f for f in analyzer.iter_files(args.directory) if f.suffix]) > 50
+    stats = analyzer.analyze(regex_rules=regex_rules, show_progress=show_progress)
     file_details = analyzer.get_file_details()
     data = file_details  # 保證 data 變數一定有值，避免 UnboundLocalError
     # 若是 --cache 模式，分析結束後印出完成時間
