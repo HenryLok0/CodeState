@@ -47,7 +47,7 @@ codestate --cache-delete
 | `--file-age`           | Show file creation and last modified time |
 | `--uncommitted`        | Show stats for files with uncommitted changes (git diff) |
 | `--size`               | Show each file's size in bytes as a table |
-| `--list-extensions`    | List all file extensions found in the project |
+| `--list-extensions`    | List all file extensions found in the project with count and percentage |
 | `--min-lines <N>`      | Only show files with total lines >= N |
 | `--find <keyword/regex>` | Find all lines matching a keyword or regex in the codebase |
 | `--cache`              | Build and use cache for much faster repeated analysis (highly recommended for large codebases) |
@@ -152,6 +152,9 @@ codestate --complexity-threshold 5 --failures-only
 
 # Analyze multiple directories (requires at least one directory)
 codestate --multi src tests
+
+# List all file extensions with count and percentage
+codestate --list-extensions
 ```
 
 ## Contributing

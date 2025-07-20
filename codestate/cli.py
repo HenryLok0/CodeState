@@ -111,9 +111,23 @@ def main():
         for file_path in analyzer._iter_files(args.directory):
             if file_path.suffix:
                 exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
+        
+        # Calculate total files and percentages
+        total_files = sum(exts.values())
+        
         print('File extensions found in project:')
-        for ext, count in sorted(exts.items()):
-            print(f'{ext} ({count})')
+        print('Extension | Count | Percentage')
+        print('----------+-------+-----------')
+        
+        # Sort by count (descending) then by extension name
+        sorted_exts = sorted(exts.items(), key=lambda x: (-x[1], x[0]))
+        
+        for ext, count in sorted_exts:
+            percentage = (count / total_files * 100) if total_files > 0 else 0
+            print(f'{ext:9} | {count:5} | {percentage:8.1f}%')
+        
+        print(f'----------+-------+-----------')
+        print(f'Total     | {total_files:5} | {100.0:8.1f}%')
         sys.exit(0)
     
     # Handle tree view without full analysis
