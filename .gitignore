@@ -5,5 +5,4 @@ __pycache__/
 *.pyc
 build/lib/codestate/
 codestate.egg-info
-.codestate_cache/
-codestate_test_output.txt
+.codestate/

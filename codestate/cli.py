@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--refactor-map', action='store_true', help='Show a map of files/functions that are refactor candidates')
     parser.add_argument('--test-coverage', type=str, help='Show test coverage analysis from a coverage.xml file')
     parser.add_argument('--cache', action='store_true', help='Enable cache for faster repeated analysis')
-    parser.add_argument('--cache-delete', action='store_true', help='Delete all cache data in .codestate_cache and exit')
+    parser.add_argument('--cache-delete', action='store_true', help='Delete all cache data in .codestate and exit')
     parser.add_argument('--test-save', action='store_true', help='Run all test commands and save all output to codestate_test_output.txt')
     args = parser.parse_args()
 
@@ -91,7 +91,7 @@ def main():
     if getattr(args, 'cache_delete', False):
         import shutil
         import os
-        cache_dir = os.path.join(args.directory, '.codestate_cache')
+        cache_dir = os.path.join(args.directory, '.codestate')
         if os.path.exists(cache_dir):
             try:
                 shutil.rmtree(cache_dir)
@@ -347,7 +347,10 @@ def main():
         start_time = time.time()
         output_file = None
         if getattr(args, 'test_save', False):
-            output_file = open('codestate_test_output.txt', 'w', encoding='utf-8')
+            test_dir = os.path.join(args.directory, '.codestate')
+            os.makedirs(test_dir, exist_ok=True)
+            test_output_path = os.path.join(test_dir, 'codestate_test_output.txt')
+            output_file = open(test_output_path, 'w', encoding='utf-8')
             output_file.write(f'CodeState CLI Test Output\n')
             output_file.write(f'Start time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
             output_file.write(f'Total commands: {total}\n\n')
@@ -454,7 +457,7 @@ def main():
         if getattr(args, 'test_save', False) and output_file:
             output_file.write(f'\nTotal elapsed time: {elapsed_str}\n')
             output_file.close()
-            print(f'All CLI test output saved to codestate_test_output.txt')
+            print(f'All CLI test output saved to {test_output_path}')
         sys.exit(0)
 
     # Analyze codebase
@@ -502,7 +505,7 @@ def main():
             elapsed = time.time() - main._cache_start_time
         
         # Get cache file path
-        cache_path = os.path.join(args.directory, '.codestate_cache', 'cache.json')
+        cache_path = os.path.join(args.directory, '.codestate', 'cache.json')
         cache_abs_path = os.path.abspath(cache_path)
         
         if elapsed is None:
