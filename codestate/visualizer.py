@@ -6,33 +6,6 @@ import os
 import csv
 import io
 import re
-# 加入 colorama 支援
-try:
-    from colorama import Fore, Style, init as colorama_init
-    colorama_init()
-    COLORAMA = True
-except ImportError:
-    COLORAMA = False
-    class Dummy:
-        RESET = ''
-        RED = ''
-        GREEN = ''
-        YELLOW = ''
-        BLUE = ''
-        CYAN = ''
-        WHITE = ''
-        LIGHTBLACK_EX = ''
-    Fore = Style = Dummy()
-
-# rich 支援
-try:
-    from rich.console import Console
-    from rich.table import Table
-    from rich import box as rich_box
-    RICH = True
-    _console = Console()
-except ImportError:
-    RICH = False
 
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
@@ -225,73 +198,8 @@ def format_size(num_bytes):
 
 def print_table(rows, headers=None, title=None):
     """
-    Print a list of dicts as a pretty aligned table. 若有 rich 則用 rich.Table。
+    Print a list of dicts as a pretty aligned table.
     """
-    rows = [r for r in rows if r is not None]
-    if not rows:
-        print("No data to display.")
-        return
-    if headers is None:
-        headers = list(rows[0].keys())
-    # rich table
-    if RICH:
-        table = Table(title=title, box=rich_box.SIMPLE_HEAVY, show_lines=False, expand=True)
-        for h in headers:
-            # 每欄固定最大寬度，且不自動換行，超過用 ...
-            table.add_column(str(h), style="cyan", overflow="ellipsis", no_wrap=True, max_width=18)
-        for row in rows:
-            row_data = []
-            for h in headers:
-                v = row.get(h, '')
-                # 根據欄位自動上色
-                if isinstance(v, float):
-                    v = f"{v:.1f}"
-                vstr = str(v)
-                # 數值欄位
-                if h in ('total_lines', 'lines', 'size', 'code_lines', 'covered', 'changes'):
-                    try:
-                        num = float(str(vstr).replace(',', '').replace(' KB','').replace(' MB','').replace(' GB',''))
-                        if num >= 1000:
-                            vstr = f"[green]{vstr}[/green]"
-                        elif num >= 100:
-                            vstr = f"[yellow]{vstr}[/yellow]"
-                        else:
-                            vstr = f"[grey50]{vstr}[/grey50]"
-                    except Exception:
-                        pass
-                elif 'percent' in h or '%' in vstr:
-                    try:
-                        num = float(vstr.replace('%','').replace(' ','').replace('(','').replace(')',''))
-                        if num >= 50:
-                            vstr = f"[green]{vstr}[/green]"
-                        elif num >= 10:
-                            vstr = f"[yellow]{vstr}[/yellow]"
-                        else:
-                            vstr = f"[grey50]{vstr}[/grey50]"
-                    except Exception:
-                        pass
-                elif 'complexity' in h:
-                    try:
-                        num = float(vstr)
-                        if num >= 10:
-                            vstr = f"[red]{vstr}[/red]"
-                        elif num >= 3:
-                            vstr = f"[yellow]{vstr}[/yellow]"
-                        else:
-                            vstr = f"[green]{vstr}[/green]"
-                    except Exception:
-                        pass
-                elif h in ('path', 'file', 'ext'):
-                    vstr = f"[cyan]{vstr}[/cyan]"
-                elif h in ('reasons', 'desc', 'type') and vstr:
-                    vstr = f"[yellow]{vstr}[/yellow]"
-                elif h == 'author' and row.get('workload_percent','').endswith('%') and float(row.get('workload_percent','0').replace('%','')) >= 50:
-                    vstr = f"[green]{vstr}[/green]"
-                row_data.append(vstr)
-            table.add_row(*row_data)
-        _console.print(table)
-        return
-    # fallback: colorama/純文字
     # 過濾掉 None
     rows = [r for r in rows if r is not None]
     if not rows:
@@ -339,74 +247,14 @@ def print_table(rows, headers=None, title=None):
         formatted_rows.append(new_row)
     col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
     if title:
-        if COLORAMA:
-            print(Fore.BLUE + f"\n{title}" + Style.RESET_ALL)
-        else:
-            print(f"\n{title}")
+        print(f"\n{title}")
     # Print header
-    if COLORAMA:
-        header_line = ' | '.join(Fore.CYAN + str(h).ljust(w) + Style.RESET_ALL for h, w in zip(headers, col_widths))
-    else:
-        header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
+    header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
     print(header_line)
     print('-+-'.join('-'*w for w in col_widths))
     # Print rows
     for row in formatted_rows:
-        colored_cells = []
-        for h, w in zip(headers, col_widths):
-            v = str(row.get(h, ''))
-            # 根據欄位自動上色
-            if COLORAMA:
-                # 數值欄位
-                if h in ('total_lines', 'lines', 'size', 'code_lines', 'covered', 'changes'):
-                    try:
-                        num = float(v.replace(',', '').replace(' KB','').replace(' MB','').replace(' GB',''))
-                        if num >= 1000:
-                            color = Fore.GREEN
-                        elif num >= 100:
-                            color = Fore.YELLOW
-                        else:
-                            color = Fore.LIGHTBLACK_EX
-                        v = color + v + Style.RESET_ALL
-                    except Exception:
-                        pass
-                # 百分比欄位
-                elif 'percent' in h or '%' in v:
-                    try:
-                        num = float(v.replace('%','').replace(' ','').replace('(','').replace(')',''))
-                        if num >= 50:
-                            color = Fore.GREEN
-                        elif num >= 10:
-                            color = Fore.YELLOW
-                        else:
-                            color = Fore.LIGHTBLACK_EX
-                        v = color + v + Style.RESET_ALL
-                    except Exception:
-                        pass
-                # 複雜度欄位
-                elif 'complexity' in h:
-                    try:
-                        num = float(v)
-                        if num >= 10:
-                            color = Fore.RED
-                        elif num >= 3:
-                            color = Fore.YELLOW
-                        else:
-                            color = Fore.GREEN
-                        v = color + v + Style.RESET_ALL
-                    except Exception:
-                        pass
-                # 路徑/檔名
-                elif h in ('path', 'file', 'ext'):
-                    v = Fore.CYAN + v + Style.RESET_ALL
-                # 警告/建議/違規
-                elif h in ('reasons', 'desc', 'type') and v:
-                    v = Fore.YELLOW + v + Style.RESET_ALL
-                # 主要作者
-                elif h == 'author' and row.get('workload_percent','').endswith('%') and float(row.get('workload_percent','0').replace('%','')) >= 50:
-                    v = Fore.GREEN + v + Style.RESET_ALL
-            colored_cells.append(v.ljust(w))
-        print(' | '.join(colored_cells))
+        print(' | '.join(str(row.get(h, '')).ljust(w) for h, w in zip(headers, col_widths)))
 
 def csv_report(data, headers=None):
     """
