@@ -6,6 +6,23 @@ import os
 import csv
 import io
 import re
+# Add colorama import and fallback
+try:
+    from colorama import Fore, Style, init as colorama_init
+    colorama_init()
+    COLORAMA = True
+except ImportError:
+    COLORAMA = False
+    class Dummy:
+        RESET = ''
+        RED = ''
+        GREEN = ''
+        YELLOW = ''
+        BLUE = ''
+        CYAN = ''
+        WHITE = ''
+        LIGHTBLACK_EX = ''
+    Fore = Style = Dummy()
 
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
@@ -198,9 +215,9 @@ def format_size(num_bytes):
 
 def print_table(rows, headers=None, title=None):
     """
-    Print a list of dicts as a pretty aligned table.
+    Print a list of dicts as a pretty aligned table, with color for better readability.
     """
-    # 過濾掉 None
+    # Filter out None
     rows = [r for r in rows if r is not None]
     if not rows:
         print("No data to display.")
@@ -230,9 +247,7 @@ def print_table(rows, headers=None, title=None):
     # Format size column if present
     formatted_rows = []
     avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
-    # 需要格式化為小數點後一位的欄位
     float_fields = set(['detail_workload_score', 'simple_workload_score', 'avg_lines_per_commit'])
-    # 也自動偵測所有 float 欄位
     for row in rows:
         new_row = dict(row)
         if 'size' in new_row:
@@ -241,20 +256,63 @@ def print_table(rows, headers=None, title=None):
             except Exception:
                 pass
         for k in new_row:
-            # 只要是 float 就自動格式化為小數點後一位
             if (k in avg_fields or k in float_fields or isinstance(new_row[k], float)) and isinstance(new_row[k], float):
                 new_row[k] = f"{new_row[k]:.1f}"
         formatted_rows.append(new_row)
     col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
+    # Print title in blue
     if title:
-        print(f"\n{title}")
-    # Print header
-    header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
+        if COLORAMA:
+            print(Fore.BLUE + f"\n{title}" + Style.RESET_ALL)
+        else:
+            print(f"\n{title}")
+    # Print header in cyan
+    if COLORAMA:
+        header_line = ' | '.join(Fore.CYAN + str(h).ljust(w) + Style.RESET_ALL for h, w in zip(headers, col_widths))
+    else:
+        header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
     print(header_line)
-    print('-+-'.join('-'*w for w in col_widths))
-    # Print rows
+    # Print separator in gray
+    if COLORAMA:
+        sep = Fore.LIGHTBLACK_EX + '-+-'.join('-'*w for w in col_widths) + Style.RESET_ALL
+    else:
+        sep = '-+-'.join('-'*w for w in col_widths)
+    print(sep)
+    # Find max value for each numeric column for highlight
+    max_values = {}
+    for h in headers:
+        try:
+            vals = [float(row.get(h, 0)) for row in formatted_rows if isinstance(row.get(h, None), (int, float, str)) and str(row.get(h, '')).replace('.', '', 1).replace('-', '', 1).isdigit()]
+            if vals:
+                max_values[h] = max(vals)
+        except Exception:
+            continue
+    # Print rows with color
     for row in formatted_rows:
-        print(' | '.join(str(row.get(h, '')).ljust(w) for h, w in zip(headers, col_widths)))
+        colored_row = []
+        for h, w in zip(headers, col_widths):
+            val = str(row.get(h, ''))
+            color = ''
+            reset = ''
+            # Highlight max value in green, negative in red, else default
+            if COLORAMA:
+                try:
+                    if h in max_values and (str(row.get(h, '')).replace('.', '', 1).replace('-', '', 1).isdigit()):
+                        v = float(row.get(h, 0))
+                        if v == max_values[h] and v != 0:
+                            color = Fore.GREEN
+                        elif v < 0:
+                            color = Fore.RED
+                        elif v == 0:
+                            color = Fore.LIGHTBLACK_EX
+                        else:
+                            color = ''
+                        reset = Style.RESET_ALL
+                except Exception:
+                    color = ''
+                    reset = ''
+            colored_row.append(f"{color}{val.ljust(w)}{reset}")
+        print(' | '.join(colored_row))
 
 def csv_report(data, headers=None):
     """
