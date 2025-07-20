@@ -30,9 +30,9 @@ class Analyzer:
         # exclude_dirs: list of directory names to exclude
         self.root_dir = pathlib.Path(root_dir)
         self.file_types = file_types  # None means auto-detect all extensions
-        # Always exclude .codestate_cache (cache folder)
+        # Always exclude .codestate (cache folder)
         self.exclude_dirs = set(exclude_dirs or ['.git', 'venv', 'node_modules'])
-        self.exclude_dirs.add('.codestate_cache')
+        self.exclude_dirs.add('.codestate')
         self.stats = defaultdict(lambda: {
             'file_count': 0,
             'total_lines': 0,
@@ -57,7 +57,7 @@ class Analyzer:
             print("[codestate] Warning: pathspec not installed, .gitignore will be ignored. Run 'pip install pathspec' for better results.")
 
         # --- Cache mechanism ---
-        self.cache_path = os.path.join(str(self.root_dir), '.codestate_cache', 'cache.json')
+        self.cache_path = os.path.join(str(self.root_dir), '.codestate', 'cache.json')
         self.use_cache_write = use_cache_write  # True: 會寫入快取
         self.use_cache_read = os.path.exists(self.cache_path)  # True: 只要有快取檔就能讀
         self.cache = {}

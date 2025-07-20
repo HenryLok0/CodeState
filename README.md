@@ -51,7 +51,8 @@ codestate --cache-delete
 | `--min-lines <N>`      | Only show files with total lines >= N |
 | `--find <keyword/regex>` | Find all lines matching a keyword or regex in the codebase |
 | `--cache`              | Build and use cache for much faster repeated analysis (highly recommended for large codebases) |
-| `--cache-delete`       | Delete all cache data in `.codestate_cache` (force rebuild cache on next run) |
+| `--cache-delete`       | Delete all cache data in `.codestate
+` (force rebuild cache on next run) |
 | **[Statistics & Detailed Analysis]** |             |
 | `--details`            | Show detailed statistics for each file |
 | `--dup`                | Show duplicate code blocks (5+ lines) |

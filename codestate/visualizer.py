@@ -235,9 +235,10 @@ def print_table(rows, headers=None, title=None):
         headers = list(rows[0].keys())
     # rich table
     if RICH:
-        table = Table(title=title, box=rich_box.SIMPLE_HEAVY)
+        table = Table(title=title, box=rich_box.SIMPLE_HEAVY, show_lines=False, expand=True)
         for h in headers:
-            table.add_column(str(h), style="cyan", overflow="fold")
+            # 每欄固定最大寬度，且不自動換行，超過用 ...
+            table.add_column(str(h), style="cyan", overflow="ellipsis", no_wrap=True, max_width=18)
         for row in rows:
             row_data = []
             for h in headers:
