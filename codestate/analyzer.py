@@ -83,6 +83,11 @@ class Analyzer:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
         else:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
+        
+        # Show progress bar if enabled
+        if show_progress and files:
+            print(f"Analyzing {len(files)} files...")
+        
         def analyze_file_safe(file_path):
             try:
                 result = self._analyze_file_threadsafe(file_path)
@@ -90,16 +95,36 @@ class Analyzer:
             except Exception as e:
                 print(f"Error analyzing {file_path}: {e}")
                 return (file_path, None)
+        
         results = []
+        processed_count = 0
+        
         # Use submit + as_completed for smooth progress bar
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(analyze_file_safe, file_path) for file_path in files]
+            
             for future in as_completed(futures):
                 file_path, res = future.result()
                 if res:
                     results.append(res)
+                processed_count += 1
+                
+                # Update progress bar
+                if show_progress:
+                    percent = int(processed_count / len(files) * 100)
+                    bar_len = 20
+                    progress = int(bar_len * processed_count / len(files))
+                    bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                    progress_str = f"{processed_count}/{len(files)}({percent}%)"
+                    print(f"\r{bar} {progress_str} Analyzing files...", end='', flush=True)
+                
                 if file_callback:
                     file_callback(file_path)
+        
+        # Clear progress bar line
+        if show_progress:
+            print()  # New line after progress bar
+        
         # Aggregate results
         self.stats = defaultdict(lambda: {
             'file_count': 0,
@@ -118,37 +143,78 @@ class Analyzer:
             for k in stat:
                 self.stats[ext][k] += stat[k]
             self.file_details.append(file_stat)
+        
         # Calculate comment density and average complexity
         for ext, data in self.stats.items():
             if data['file_count'] > 0:
                 data['comment_density'] = data['comment_lines'] / data['total_lines'] if data['total_lines'] else 0
                 data['avg_complexity'] = data['complexity'] / data['function_count'] if data['function_count'] else 0
                 data['function_avg_length'] = (data['total_lines'] / data['function_count']) if data['function_count'] else 0
-        self._detect_duplicates()
-        self._detect_git_authors()
-        self._check_naming_conventions()
-        self._extract_api_doc_summaries()
-        self._detect_large_warnings()
-        self._analyze_git_hotspots()
-        self._analyze_file_trends()
-        self._analyze_refactor_suggestions()
-        self._analyze_openapi()
-        self._analyze_style_issues()
-        self._analyze_contributor_stats()
-        self._analyze_advanced_security_issues()
+        
+        # Define post-processing steps for progress tracking
+        post_processing_steps = [
+            ('Detecting duplicates', self._detect_duplicates),
+            ('Analyzing Git authors', self._detect_git_authors),
+            ('Checking naming conventions', self._check_naming_conventions),
+            ('Extracting API docs', self._extract_api_doc_summaries),
+            ('Detecting large warnings', self._detect_large_warnings),
+            ('Analyzing Git hotspots', self._analyze_git_hotspots),
+            ('Analyzing file trends', self._analyze_file_trends),
+            ('Analyzing refactor suggestions', self._analyze_refactor_suggestions),
+            ('Analyzing OpenAPI', self._analyze_openapi),
+            ('Analyzing style issues', self._analyze_style_issues),
+            ('Analyzing contributor stats', self._analyze_contributor_stats),
+            ('Analyzing advanced security', self._analyze_advanced_security_issues),
+            ('Generating health report', self._generate_health_report),
+            ('Generating grouped stats', self._generate_grouped_stats),
+            ('Detecting unused definitions', self._detect_unused_defs),
+            ('Analyzing API param stats', self._analyze_api_param_type_stats),
+            ('Scanning security issues', self._scan_security_issues),
+        ]
+        
+        # Execute post-processing steps with progress updates
+        for i, (step_name, step_func) in enumerate(post_processing_steps):
+            if show_progress:
+                # Calculate progress: file analysis is 80%, post-processing is 20%
+                file_progress = 80
+                post_progress = (i / len(post_processing_steps)) * 20
+                total_progress = file_progress + post_progress
+                percent = int(total_progress)
+                bar_len = 20
+                progress = int(bar_len * total_progress / 100)
+                bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                print(f"\r{bar} {percent}% {step_name}...", end='', flush=True)
+            
+            try:
+                step_func()
+            except Exception as e:
+                if show_progress:
+                    print(f"\nWarning: {step_name} failed: {e}")
+        
+        # Handle regex rules if provided
         if regex_rules:
+            if show_progress:
+                percent = 95
+                bar_len = 20
+                progress = int(bar_len * percent / 100)
+                bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                print(f"\r{bar} {percent}% Checking regex rules...", end='', flush=True)
             self._check_regex_rules(regex_rules)
-        self._generate_health_report()
-        self._generate_grouped_stats()
-        self._detect_unused_defs()
-        self._analyze_api_param_type_stats()
-        self._scan_security_issues()
+        
         # Find max/min file by total_lines
         if self.file_details:
             self.max_file = max(self.file_details, key=lambda x: x['total_lines'])
             self.min_file = min(self.file_details, key=lambda x: x['total_lines'])
-        # --- Save cache after analysis (只有 use_cache_write=True 才會寫入) ---
+        
+        # Save cache after analysis (只有 use_cache_write=True 才會寫入)
         if self.use_cache_write:
+            if show_progress:
+                percent = 98
+                bar_len = 20
+                progress = int(bar_len * percent / 100)
+                bar = '[' + '=' * progress + '>' + ' ' * (bar_len - progress - 1) + ']'
+                print(f"\r{bar} {percent}% Saving cache...", end='', flush=True)
+            
             # 確保主要分析結果存入 cache
             self.cache['_stats'] = self.stats
             self.cache['_file_details'] = self.file_details
@@ -162,6 +228,15 @@ class Analyzer:
                     json.dump(self.cache, f)
             except Exception as e:
                 print(f'[codestate] Failed to write cache: {e}')
+        
+        # Show 100% completion
+        if show_progress:
+            percent = 100
+            bar_len = 20
+            progress = bar_len
+            bar = '[' + '=' * progress + ']'
+            print(f"\r{bar} {percent}% Analysis complete!")
+        
         return self.stats
 
     def _analyze_file_threadsafe(self, file_path):
@@ -1126,7 +1201,7 @@ class Analyzer:
         # Return list of advanced security issues
         return getattr(self, 'advanced_security_issues', [])
 
-    def _iter_files(self, root):
+    def iter_files(self, root):
         # Generator that yields files, skipping excluded directories and .gitignore rules
         for dirpath, dirnames, filenames in os.walk(root):
             # Remove excluded directories in-place
@@ -1138,6 +1213,10 @@ class Analyzer:
                 if self.gitignore_spec and self.gitignore_spec.match_file(rel_path):
                     continue
                 yield file_path
+    
+    def _iter_files(self, root):
+        # Backward compatibility for internal use
+        return self.iter_files(root)
 
     def _estimate_complexity(self, line):
         # Simple cyclomatic complexity estimation: count keywords
