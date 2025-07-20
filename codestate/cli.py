@@ -422,17 +422,26 @@ def main():
     stats = analyzer.analyze(regex_rules=regex_rules, show_progress=show_progress)
     file_details = analyzer.get_file_details()
     data = file_details  # 保證 data 變數一定有值，避免 UnboundLocalError
-    # 若是 --cache 模式，分析結束後印出完成時間
+    # 若是 --cache 模式，分析結束後印出完成時間和快取檔案位置
     if getattr(args, 'cache', False):
         import time
+        import os
         now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         elapsed = None
         if hasattr(main, '_cache_start_time'):
             elapsed = time.time() - main._cache_start_time
+        
+        # Get cache file path
+        cache_path = os.path.join(args.directory, '.codestate_cache', 'cache.json')
+        cache_abs_path = os.path.abspath(cache_path)
+        
         if elapsed is None:
             print(f'Cache build finished at {now}')
         else:
             print(f'Cache build finished at {now} (elapsed: {elapsed:.1f}s)')
+        
+        # Show cache file location
+        print(f'Cache file created at: {cache_abs_path}')
 
     # --only-lang 過濾
     if args.only_lang:
