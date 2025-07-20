@@ -84,6 +84,7 @@ def main():
     parser.add_argument('--test-coverage', type=str, help='Show test coverage analysis from a coverage.xml file')
     parser.add_argument('--cache', action='store_true', help='Enable cache for faster repeated analysis')
     parser.add_argument('--cache-delete', action='store_true', help='Delete all cache data in .codestate_cache and exit')
+    parser.add_argument('--test-save', action='store_true', help='Run all test commands and save all output to codestate_test_output.txt')
     args = parser.parse_args()
 
     # Handle cache delete
@@ -106,28 +107,57 @@ def main():
         sys.exit(0)
     
     if args.list_extensions:
+        try:
+            from colorama import Fore, Style, init as colorama_init
+            colorama_init()
+            COLORAMA = True
+        except ImportError:
+            COLORAMA = False
+            class Dummy:
+                RESET = ''
+                RED = ''
+                GREEN = ''
+                YELLOW = ''
+                BLUE = ''
+                CYAN = ''
+                WHITE = ''
+                LIGHTBLACK_EX = ''
+            Fore = Style = Dummy()
         analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
         exts = {}
         for file_path in analyzer._iter_files(args.directory):
             if file_path.suffix:
                 exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
-        
-        # Calculate total files and percentages
         total_files = sum(exts.values())
-        
-        print('File extensions found in project:')
-        print('Extension | Count | Percentage')
-        print('----------+-------+-----------')
-        
-        # Sort by count (descending) then by extension name
+        # 標題加藍色
+        if COLORAMA:
+            print(Fore.BLUE + 'File extensions found in project:' + Style.RESET_ALL)
+            print(Fore.CYAN + 'Extension | Count | Percentage' + Style.RESET_ALL)
+            print(Fore.CYAN + '----------+-------+-----------' + Style.RESET_ALL)
+        else:
+            print('File extensions found in project:')
+            print('Extension | Count | Percentage')
+            print('----------+-------+-----------')
         sorted_exts = sorted(exts.items(), key=lambda x: (-x[1], x[0]))
-        
         for ext, count in sorted_exts:
             percentage = (count / total_files * 100) if total_files > 0 else 0
-            print(f'{ext:9} | {count:5} | {percentage:8.1f}%')
-        
-        print(f'----------+-------+-----------')
-        print(f'Total     | {total_files:5} | {100.0:8.1f}%')
+            # 百分比顏色
+            if COLORAMA:
+                if percentage >= 50:
+                    color = Fore.GREEN
+                elif percentage >= 10:
+                    color = Fore.YELLOW
+                else:
+                    color = Fore.LIGHTBLACK_EX
+                print(f'{ext:9} | {count:5} | {color}{percentage:8.1f}%{Style.RESET_ALL}')
+            else:
+                print(f'{ext:9} | {count:5} | {percentage:8.1f}%')
+        if COLORAMA:
+            print(Fore.CYAN + '----------+-------+-----------' + Style.RESET_ALL)
+            print(Fore.BLUE + f'Total     | {total_files:5} | {100.0:8.1f}%'+ Style.RESET_ALL)
+        else:
+            print(f'----------+-------+-----------')
+            print(f'Total     | {total_files:5} | {100.0:8.1f}%')
         sys.exit(0)
     
     # Handle tree view without full analysis
@@ -261,12 +291,11 @@ def main():
         return
 
     # --test 隱藏自動測試分支
-    if getattr(args, 'test', False) or getattr(args, 'test_show', False):
+    if getattr(args, 'test', False) or getattr(args, 'test_show', False) or getattr(args, 'test_save', False):
         import subprocess
         import os
         import platform
         import time
-        # 根據平台決定丟棄檔案的路徑
         nullfile = 'NUL' if os.name == 'nt' else '/dev/null'
         excel_file = 'codestate_report.xlsx'
         commands = [
@@ -316,18 +345,30 @@ def main():
         fail_count = 0
         total = len(commands)
         start_time = time.time()
+        output_file = None
+        if getattr(args, 'test_save', False):
+            output_file = open('codestate_test_output.txt', 'w', encoding='utf-8')
+            output_file.write(f'CodeState CLI Test Output\n')
+            output_file.write(f'Start time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
+            output_file.write(f'Total commands: {total}\n\n')
         for idx, cmd in enumerate(commands, 1):
             try:
-                cmd_start = time.time()  # 記錄本次指令開始時間
+                cmd_start = time.time()
                 if getattr(args, 'test_show', False):
-                    # 顯示所有輸出
                     result = subprocess.run(
                         [sys.executable, '-m', 'codestate.cli'] + cmd,
                         cwd=args.directory if hasattr(args, 'directory') else '.',
                         text=True
                     )
+                elif getattr(args, 'test_save', False):
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'codestate.cli'] + cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        cwd=args.directory if hasattr(args, 'directory') else '.',
+                        text=True
+                    )
                 else:
-                    # 隱藏 stdout，只顯示 stderr
                     result = subprocess.run(
                         [sys.executable, '-m', 'codestate.cli'] + cmd,
                         stdout=subprocess.DEVNULL,
@@ -335,7 +376,7 @@ def main():
                         cwd=args.directory if hasattr(args, 'directory') else '.',
                         text=True
                     )
-                cmd_elapsed = time.time() - cmd_start  # 計算本次指令花費時間
+                cmd_elapsed = time.time() - cmd_start
                 elapsed = time.time() - start_time
                 percent_done = int(idx / total * 100)
                 avg_time = elapsed / idx if idx > 0 else 0
@@ -354,11 +395,20 @@ def main():
                     any_error = True
                     fail_count += 1
                     print(f"{bar} [FAIL]   {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
-                    if not getattr(args, 'test_show', False):
+                    if getattr(args, 'test_show', False):
                         print(result.stderr)
                 else:
                     success_count += 1
                     print(f"{bar} [OK]     {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left")
+                # 寫入檔案
+                if getattr(args, 'test_save', False) and output_file:
+                    output_file.write(f"{'='*60}\n[{' '.join(cmd) if cmd else 'default'}]\n")
+                    output_file.write(f"Return code: {result.returncode}\n")
+                    if result.stdout:
+                        output_file.write(result.stdout)
+                    if result.stderr:
+                        output_file.write('\n[stderr]\n' + result.stderr)
+                    output_file.write(f"\n[Elapsed: {cmd_elapsed:.1f}s]\n\n")
             except Exception as e:
                 cmd_elapsed = time.time() - cmd_start if 'cmd_start' in locals() else 0
                 any_error = True
@@ -378,7 +428,10 @@ def main():
                 else:
                     est_str = f'{est_left:.1f}s'
                 print(f"{bar} [EXCEPTION] {progress_str} {' '.join(cmd)} | {cmd_elapsed:.1f}s for this cmd | {elapsed:.1f}s elapsed | est {est_str} left: {e}")
-        # 刪除 codestate_report.xlsx
+                if getattr(args, 'test_save', False) and output_file:
+                    output_file.write(f"{'='*60}\n[{' '.join(cmd) if cmd else 'default'}]\n")
+                    output_file.write(f"[EXCEPTION] {e}\n")
+                    output_file.write(f"[Elapsed: {cmd_elapsed:.1f}s]\n\n")
         try:
             if os.path.exists(excel_file):
                 os.remove(excel_file)
@@ -398,6 +451,10 @@ def main():
             percent = (success_count / total * 100) if total else 0
             print(f'Success: {success_count}, Fail: {fail_count}, Success rate: {percent:.1f}%')
         print(f'Total elapsed time: {elapsed_str}')
+        if getattr(args, 'test_save', False) and output_file:
+            output_file.write(f'\nTotal elapsed time: {elapsed_str}\n')
+            output_file.close()
+            print(f'All CLI test output saved to codestate_test_output.txt')
         sys.exit(0)
 
     # Analyze codebase
