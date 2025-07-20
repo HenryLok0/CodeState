@@ -242,12 +242,15 @@ class Analyzer:
     def _analyze_file_threadsafe(self, file_path):
         # Returns (stat_dict, file_stat) for aggregation
         # --- Check cache before analyzing (只有 use_cache_write=True 才會寫入/更新單檔快取) ---
+        cache_key = str(file_path)
+        mtime = None
+        size = None
+        
         if self.use_cache_read:
             try:
                 statinfo = os.stat(file_path)
                 mtime = statinfo.st_mtime
                 size = statinfo.st_size
-                cache_key = str(file_path)
                 cache_entry = self.cache.get(cache_key)
                 if cache_entry and cache_entry.get('mtime') == mtime and cache_entry.get('size') == size:
                     # Use cached result if file not changed
@@ -328,7 +331,6 @@ class Analyzer:
 
     def _scan_security_issues(self):
         # Scan for common insecure patterns, now also includes cloud DB connection strings
-        import re
         patterns = [
             (r'\beval\s*\(', 'Use of eval()'),
             (r'\bexec\s*\(', 'Use of exec()'),
@@ -662,12 +664,10 @@ class Analyzer:
 
     def _is_snake_case(self, name):
         # Check if name is snake_case
-        import re
         return bool(re.match(r'^[a-z_][a-z0-9_]*$', name))
 
     def _is_pascal_case(self, name):
         # Check if name is PascalCase
-        import re
         return bool(re.match(r'^[A-Z][a-zA-Z0-9]*$', name))
 
     def get_naming_violations(self):
@@ -676,7 +676,6 @@ class Analyzer:
 
     def _check_regex_rules(self, regex_rules):
         # regex_rules: list of regex strings
-        import re
         self.regex_matches = []
         for file_stat in self.file_details:
             path = file_stat['path']
@@ -1122,7 +1121,6 @@ class Analyzer:
 
     def _analyze_advanced_security_issues(self):
         # Scan for advanced security issues: SSRF, RCE, SQLi, secrets, and cloud DB connection strings
-        import re
         patterns = [
             (r'requests\.get\s*\(\s*input\(', 'Potential SSRF: requests.get(input())'),
             (r'os\.system\s*\(', 'Potential RCE: os.system()'),
@@ -1246,13 +1244,11 @@ class Analyzer:
         for v in self.get_naming_violations():
             if v['type'] == 'function':
                 # Suggest convert to snake_case
-                import re
                 new_name = re.sub(r'([A-Z])', r'_\1', v['name']).lower().lstrip('_')
                 suggestions.append(f"[Naming] {v['file']} line {v['line']}: function '{v['name']}' → '{new_name}' (suggest snake_case)")
                 suggestions.append(f"patch: replace def {v['name']} → def {new_name}")
             elif v['type'] == 'class':
                 # Suggest convert to PascalCase
-                import re
                 parts = re.split(r'_|-|\s', v['name'])
                 new_name = ''.join(p.capitalize() for p in parts if p)
                 suggestions.append(f"[Naming] {v['file']} line {v['line']}: class '{v['name']}' → '{new_name}' (suggest PascalCase)")

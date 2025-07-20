@@ -223,7 +223,6 @@ def main():
                 if url:
                     break
             if url:
-                import re
                 m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
                 if m:
                     github_repo = m.group(1)
@@ -455,10 +454,15 @@ def main():
     # --failures-only 過濾
     if args.failures_only:
         violations = analyzer.get_naming_violations()
-        large_warn = analyzer.get_large_warnings(
-            threshold_file=int(getattr(args, 'warnsize', [300])[0]) if getattr(args, 'warnsize', None) else 300,
-            threshold_func=int(getattr(args, 'warnsize', [50, 50])[1]) if getattr(args, 'warnsize', None) and len(args.warnsize) > 1 else 50
-        )
+        # Handle warnsize argument safely
+        if args.warnsize is not None and len(args.warnsize) >= 1:
+            threshold_file = int(args.warnsize[0])
+            threshold_func = int(args.warnsize[1]) if len(args.warnsize) > 1 else 50
+        else:
+            threshold_file = 300
+            threshold_func = 50
+        
+        large_warn = analyzer.get_large_warnings(threshold_file, threshold_func)
         failed_files = set()
         for v in violations:
             failed_files.add(v['file'])
@@ -1061,7 +1065,6 @@ def main():
                 if url:
                     break
             if url:
-                import re
                 m = re.search(r'github.com[:/](.+?)(?:\.git)?$', url)
                 if m:
                     github_repo = m.group(1)
@@ -1200,7 +1203,10 @@ def main():
         file_path = args.blame
         # 在 file_details 找到第一個檔名相符的檔案
         match = next((f for f in file_details if f['path'] == file_path or f['path'].endswith(file_path) or os.path.basename(f['path']) == os.path.basename(file_path)), None)
-        blame_target = match['path'] if match else file_path
+        if match is None:
+            print(f'[codestate] File not found in analysis: {file_path}')
+            return
+        blame_target = match['path']
         try:
             cmd = ['git', 'blame', '--line-porcelain', blame_target]
             out = subprocess.check_output(cmd, encoding='utf-8', errors='ignore')
