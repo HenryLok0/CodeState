@@ -33,6 +33,16 @@ class Analyzer:
         # Always exclude .codestate (cache folder)
         self.exclude_dirs = set(exclude_dirs or ['.git', 'venv', 'node_modules'])
         self.exclude_dirs.add('.codestate')
+        # Default code-related extensions (when file_types is None)
+        self.default_code_exts = set([
+            # Core
+            '.py', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs',
+            '.java', '.c', '.h', '.cpp', '.hpp', '.cc', '.cs', '.go', '.rb', '.php', '.rs', '.kt', '.swift',
+            '.m', '.mm', '.scala', '.sh', '.bash', '.zsh', '.ps1', '.psm1', '.pl', '.pm', '.r', '.jl', '.lua',
+            '.ex', '.exs', '.hs', '.erl', '.clj', '.groovy', '.dart', '.sql',
+            # Web/template
+            '.html', '.css', '.scss', '.sass', '.less', '.vue', '.svelte', '.handlebars', '.hbs', '.ejs', '.jinja', '.jinja2', '.njk'
+        ])
         self.stats = defaultdict(lambda: {
             'file_count': 0,
             'total_lines': 0,
@@ -80,7 +90,10 @@ class Analyzer:
                     setattr(self, attr, self.cache[f'_{attr}'])
             return self.stats
         if self.file_types is None:
-            files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix]
+            files = [
+                file_path for file_path in self._iter_files(self.root_dir)
+                if file_path.suffix and file_path.suffix.lower() in self.default_code_exts
+            ]
         else:
             files = [file_path for file_path in self._iter_files(self.root_dir) if file_path.suffix in self.file_types]
         
