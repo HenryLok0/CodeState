@@ -6,7 +6,9 @@
 [![MIT License](https://img.shields.io/github/license/HenryLok0/CodeState?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/HenryLok0/CodeState?style=flat-square)](https://github.com/HenryLok0/CodeState/stargazers)
 
-A CLI tool that analyzes your local codebase and generates detailed statistics, such as lines of code per file type, function complexity, comment density, and more. It visualizes the data as ASCII charts or exports to JSON, HTML, or Markdown for further use. This tool is designed for developers who want quick insights into their project's structure without relying on external services.
+Instant codebase insights in your terminal — fast, local, zero telemetry.
+
+CodeState analyzes your repository and generates detailed statistics like lines of code by extension, complexity, comment density, hotspots, contributors, and more. It renders ASCII charts in the terminal and can export JSON/HTML/Markdown for reports.
 
 ## Installation
 
@@ -157,6 +159,28 @@ codestate --multi src tests
 # List all file extensions with count and percentage
 codestate --list-extensions
 ```
+
+## Comparison
+
+| Tool | Quick ASCII visuals | Duplicate code | Git hotspots/churn | Contributors stats | Exports (HTML/CSV/Excel) | Caching |
+| --- | --- | --- | --- | --- | --- | --- |
+| CodeState | Yes (pie/heatmap/bar) | Yes | Yes | Yes | Yes | Yes |
+| cloc | No | No | No | No | Limited | No |
+| scc | Limited | No | No | No | Limited | No |
+| radon | Complexity only | No | No | No | No | No |
+
+## Why CodeState?
+
+- Beyond LOC: detect duplicates, complexity hotspots, refactor candidates, naming, dead code.
+- Developer-facing: ASCII charts (pie/heatmap/bar) directly in terminal — great for quick reviews.
+- History-aware: hotspots/churn from git to guide refactoring.
+- Team insights: contributors and blame stats per file.
+- Fast on repeats: built-in caching for large repos.
+Flexible exports: HTML/Markdown/JSON/CSV/Excel for reports and CI artifacts.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=HenryLok0/CodeState&type=Date)](https://star-history.com/#HenryLok0/CodeState&Date)
 
 ## Contributing
 
