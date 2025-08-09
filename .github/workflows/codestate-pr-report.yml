@@ -95,15 +95,15 @@ jobs:
               else
                 label="Manual ($base)"
               fi
-        # Try to read metadata for time and full sha
-        TIME=""; FULL_SHA="";
+              # Try to read metadata for time and full sha
+              TIME=""; FULL_SHA="";
               if [ -f "$OUTDIR/$dir/metadata.json" ]; then
                 TIME=$(sed -n 's/.*"time"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' "$OUTDIR/$dir/metadata.json" | head -n1)
                 FULL_SHA=$(sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' "$OUTDIR/$dir/metadata.json" | head -n1)
               fi
               short=${base#sha-}
               cmd="git checkout ${FULL_SHA:-$short}"
-        if [ -n "$TIME" ]; then
+              if [ -n "$TIME" ]; then
                 echo "- [$label]($dir/) — $TIME — \`$cmd\`" >> "$HISTORY_FILE_MD"
               else
                 echo "- [$label]($dir/) — \`$cmd\`" >> "$HISTORY_FILE_MD"
@@ -111,7 +111,7 @@ jobs:
             done <<< "$EXISTING_INDEXES"
           fi
           # Add current run at the top
-      echo "- [Current Run]($SUBPATH/) — $COMMIT_TIME — \`git checkout $GITHUB_SHA\`" | cat - "$HISTORY_FILE_MD" > "$HISTORY_FILE_MD.tmp" && mv "$HISTORY_FILE_MD.tmp" "$HISTORY_FILE_MD"
+          echo "- [Current Run]($SUBPATH/) — $COMMIT_TIME — \`git checkout $GITHUB_SHA\`" | cat - "$HISTORY_FILE_MD" > "$HISTORY_FILE_MD.tmp" && mv "$HISTORY_FILE_MD.tmp" "$HISTORY_FILE_MD"
 
           # Build index.md from root README plus quick links
           INDEX_MD="$OUTDIR/index.md"
