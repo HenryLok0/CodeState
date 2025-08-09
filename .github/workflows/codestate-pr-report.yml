@@ -5,13 +5,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   pr-report:
     name: Generate PR Code Report
     runs-on: ubuntu-latest
-    permissions:
-  contents: write
-  pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
