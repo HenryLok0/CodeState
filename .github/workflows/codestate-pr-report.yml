@@ -91,8 +91,8 @@ jobs:
           if-no-files-found: warn
 
       - name: Create or update PR comment
+        if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
-  if: github.event_name == 'pull_request'
         with:
           header: codestate-pr-report
           path: codestate_pr_report.md
