@@ -1,0 +1,45 @@
+name: CodeState PR Report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  pr-report:
+    name: Generate PR Code Report
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate PR report
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          python tools/codestate_pr_report.py
+
+      - name: Upload HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codestate-pr-report
+          path: |
+            codestate_pr_report.html
+            codestate_pr_report.json
+          if-no-files-found: warn
+
+      - name: Create or update PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: codestate-pr-report
+          path: codestate_pr_report.md
