@@ -10,7 +10,7 @@ jobs:
     name: Generate PR Code Report
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+  contents: write
       pull-requests: write
     steps:
       - name: Checkout
@@ -29,6 +29,57 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           python tools/codestate_pr_report.py
+
+      - name: Build Pages content
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -e
+          SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
+          OUTDIR="site"
+          mkdir -p "$OUTDIR"
+          # Decide sub path
+          if [ -n "$PR_NUMBER" ]; then
+            SUBPATH="reports/pr-${PR_NUMBER}/sha-${SHORT_SHA}"
+          else
+            SUBPATH="reports/manual/sha-${SHORT_SHA}"
+          fi
+          mkdir -p "$OUTDIR/$SUBPATH"
+          # Copy report as index.html for direct open
+          if [ -f codestate_pr_report.html ]; then
+            cp codestate_pr_report.html "$OUTDIR/$SUBPATH/index.html"
+          else
+            echo "<html><body><h3>No report found</h3></body></html>" > "$OUTDIR/$SUBPATH/index.html"
+          fi
+          # Copy JSON for programmatic access
+          if [ -f codestate_pr_report.json ]; then
+            cp codestate_pr_report.json "$OUTDIR/$SUBPATH/codestate_pr_report.json"
+          fi
+          # Minimal landing index pointing to this run's page
+          cat > "$OUTDIR/index.html" << 'HTML'
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>CodeState Reports</title>
+          <style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;line-height:1.5}a{color:#2563eb}</style>
+          </head><body>
+          <h2>CodeState PR Reports</h2>
+          <p>This site hosts the latest generated PR report for this run.</p>
+          <p><a id="runLink" href="SUBPATH_PLACEHOLDER/">Open this run's report</a></p>
+          <p>Looking for older runs? Use the URL pattern: <code>/reports/pr-&lt;number&gt;/sha-&lt;short&gt;/</code></p>
+          </body></html>
+          HTML
+          # Inject subpath
+          sed -i "s|SUBPATH_PLACEHOLDER|$SUBPATH|g" "$OUTDIR/index.html"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./site
+          keep_files: true
 
       - name: Upload HTML artifact
         uses: actions/upload-artifact@v4
