@@ -40,9 +40,9 @@ jobs:
         run: |
           python tools/codestate_pr_report.py
 
-    - name: Build Pages content (index + history)
+      - name: Build Pages content (index + history)
         env:
-      PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -e
