@@ -78,9 +78,7 @@ jobs:
           fi
           # Write metadata for this run
           COMMIT_MSG_ESC=$(printf '%s' "$COMMIT_MSG" | sed 's/"/\\"/g')
-          cat > "$OUTDIR/$SUBPATH/metadata.json" << META
-          {"pr_number":"$PR_NUMBER","short_sha":"$SHORT_SHA","sha":"$GITHUB_SHA","time":"$COMMIT_TIME","message":"$COMMIT_MSG_ESC"}
-META
+          printf '%s' "{\"pr_number\":\"$PR_NUMBER\",\"short_sha\":\"$SHORT_SHA\",\"sha\":\"$GITHUB_SHA\",\"time\":\"$COMMIT_TIME\",\"message\":\"$COMMIT_MSG_ESC\"}" > "$OUTDIR/$SUBPATH/metadata.json"
           # Build history list from existing content in OUTDIR (copied + current)
           HISTORY_FILE_MD="$OUTDIR/history.md"
           echo "# CodeState Report History" > "$HISTORY_FILE_MD"
