@@ -162,21 +162,28 @@ codestate --list-extensions
 
 ## Comparison
 
-| Tool | Quick ASCII visuals | Duplicate code | Git hotspots/churn | Contributors stats | Exports (HTML/CSV/Excel) | Caching |
-| --- | --- | --- | --- | --- | --- | --- |
-| CodeState | Yes (pie/heatmap/bar) | Yes | Yes | Yes | Yes | Yes |
-| cloc | No | No | No | No | Limited | No |
-| scc | Limited | No | No | No | Limited | No |
-| radon | Complexity only | No | No | No | No | No |
+| Feature | CodeState | cloc | scc | tokei |
+| --- | --- | --- | --- | --- |
+| Stats (files/lines/comments) | Yes | Yes | Yes | Yes |
+| ASCII charts / heatmap in terminal | Yes | No | No | No |
+| Report exports (HTML / Markdown / CSV) | Yes | Limited | Limited | Limited |
+| .gitignore awareness & caching | Yes | Manual excludes | Manual excludes | Manual excludes |
+| Hotspots / duplicates / naming checks | Yes | No | No | No |
+
+Notes:
+- “Manual excludes” means the tool supports flags to ignore paths but doesn’t automatically read .gitignore or provide built-in caching like CodeState.
+- See Performance benchmarks below for speed guidance and how to reproduce measurements.
 
 ## Why CodeState?
 
-- Beyond LOC: detect duplicates, complexity hotspots, refactor candidates, naming, dead code.
-- Developer-facing: ASCII charts (pie/heatmap/bar) directly in terminal — great for quick reviews.
-- History-aware: hotspots/churn from git to guide refactoring.
-- Team insights: contributors and blame stats per file.
-- Fast on repeats: built-in caching for large repos.
-Flexible exports: HTML/Markdown/JSON/CSV/Excel for reports and CI artifacts.
+- Instant understanding: go beyond LOC to highlight duplicates, complexity hotspots, refactor candidates, naming issues, and dead code — right in your terminal.
+- Visual by default: ASCII pie/heatmap/bar charts make trends obvious during reviews, without leaving the CLI.
+- History-aware decisions: git hotspots/churn help you prioritize the files that matter most.
+- Team visibility: contributors and blame insights per file unlock ownership and onboarding context.
+- CI-ready artifacts: export HTML/Markdown/JSON/CSV/Excel for reports, dashboards, and pipelines.
+- Faster repeat runs: built-in caching and .gitignore support keep large repositories snappy over time.
+
+Tip: Combine CodeState with a GitHub Action to post a compact Markdown summary on every PR.
 
 ## Star History
 
