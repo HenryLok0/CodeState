@@ -48,10 +48,6 @@ jobs:
           set -e
           SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
           COMMIT_TIME=$(git show -s --format=%cI "$GITHUB_SHA" || date -u +%Y-%m-%dT%H:%M:%SZ)
-          COMMIT_MSG=$(git show -s --format=%s "$GITHUB_SHA" || echo "")
-          # Truncate commit message for display (80 chars max)
-          COMMIT_MSG_SHORT=$(printf '%s' "$COMMIT_MSG" | head -c 80)
-          if [ ${#COMMIT_MSG} -gt 80 ]; then COMMIT_MSG_SHORT="$COMMIT_MSG_SHORT…"; fi
           OUTDIR="site"
           mkdir -p "$OUTDIR"
           # Bring over existing reports so we can publish with keep_files=false safely
@@ -76,9 +72,8 @@ jobs:
           if [ -f codestate_pr_report.json ]; then
             cp codestate_pr_report.json "$OUTDIR/$SUBPATH/codestate_pr_report.json"
           fi
-          # Write metadata for this run
-          COMMIT_MSG_ESC=$(printf '%s' "$COMMIT_MSG" | sed 's/"/\\"/g')
-          printf '%s' "{\"pr_number\":\"$PR_NUMBER\",\"short_sha\":\"$SHORT_SHA\",\"sha\":\"$GITHUB_SHA\",\"time\":\"$COMMIT_TIME\",\"message\":\"$COMMIT_MSG_ESC\"}" > "$OUTDIR/$SUBPATH/metadata.json"
+          # Write metadata for this run (no commit message)
+          printf '%s' "{\"pr_number\":\"$PR_NUMBER\",\"short_sha\":\"$SHORT_SHA\",\"sha\":\"$GITHUB_SHA\",\"time\":\"$COMMIT_TIME\"}" > "$OUTDIR/$SUBPATH/metadata.json"
           # Build history list from existing content in OUTDIR (copied + current)
           HISTORY_FILE_MD="$OUTDIR/history.md"
           echo "# CodeState Report History" > "$HISTORY_FILE_MD"
@@ -100,21 +95,15 @@ jobs:
               else
                 label="Manual ($base)"
               fi
-              # Try to read metadata for time and full sha
-              TIME=""; FULL_SHA=""; MSG="";
+        # Try to read metadata for time and full sha
+        TIME=""; FULL_SHA="";
               if [ -f "$OUTDIR/$dir/metadata.json" ]; then
                 TIME=$(sed -n 's/.*"time"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' "$OUTDIR/$dir/metadata.json" | head -n1)
                 FULL_SHA=$(sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' "$OUTDIR/$dir/metadata.json" | head -n1)
-                MSG=$(sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' "$OUTDIR/$dir/metadata.json" | head -n1)
               fi
               short=${base#sha-}
               cmd="git checkout ${FULL_SHA:-$short}"
-              # Truncate message for display
-              MSG_SHORT=$(printf '%s' "$MSG" | head -c 80)
-              if [ ${#MSG} -gt 80 ]; then MSG_SHORT="$MSG_SHORT…"; fi
-              if [ -n "$TIME" ] && [ -n "$MSG_SHORT" ]; then
-                echo "- [$label]($dir/) — $TIME — \`$cmd\` — $MSG_SHORT" >> "$HISTORY_FILE_MD"
-              elif [ -n "$TIME" ]; then
+        if [ -n "$TIME" ]; then
                 echo "- [$label]($dir/) — $TIME — \`$cmd\`" >> "$HISTORY_FILE_MD"
               else
                 echo "- [$label]($dir/) — \`$cmd\`" >> "$HISTORY_FILE_MD"
@@ -122,7 +111,7 @@ jobs:
             done <<< "$EXISTING_INDEXES"
           fi
           # Add current run at the top
-          echo "- [Current Run]($SUBPATH/) — $COMMIT_TIME — \`git checkout $GITHUB_SHA\` — $COMMIT_MSG_SHORT" | cat - "$HISTORY_FILE_MD" > "$HISTORY_FILE_MD.tmp" && mv "$HISTORY_FILE_MD.tmp" "$HISTORY_FILE_MD"
+      echo "- [Current Run]($SUBPATH/) — $COMMIT_TIME — \`git checkout $GITHUB_SHA\`" | cat - "$HISTORY_FILE_MD" > "$HISTORY_FILE_MD.tmp" && mv "$HISTORY_FILE_MD.tmp" "$HISTORY_FILE_MD"
 
           # Build index.md from root README plus quick links
           INDEX_MD="$OUTDIR/index.md"
