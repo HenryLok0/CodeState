@@ -1,6 +1,8 @@
 name: CodeState PR Report
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
@@ -33,14 +35,14 @@ jobs:
 
       - name: Generate PR report
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ github.sha }}
         run: |
           python tools/codestate_pr_report.py
 
-      - name: Build Pages content (index + history)
+    - name: Build Pages content (index + history)
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -e
