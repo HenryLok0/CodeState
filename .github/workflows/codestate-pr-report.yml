@@ -49,6 +49,11 @@ jobs:
           SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
           OUTDIR="site"
           mkdir -p "$OUTDIR"
+          # Bring over existing reports so we can publish with keep_files=false safely
+          if [ -d ghp/reports ]; then
+            mkdir -p "$OUTDIR/reports"
+            cp -R ghp/reports/* "$OUTDIR/reports/" || true
+          fi
           # Decide sub path
           if [ -n "$PR_NUMBER" ]; then
             SUBPATH="reports/pr-${PR_NUMBER}/sha-${SHORT_SHA}"
@@ -66,18 +71,17 @@ jobs:
           if [ -f codestate_pr_report.json ]; then
             cp codestate_pr_report.json "$OUTDIR/$SUBPATH/codestate_pr_report.json"
           fi
-          # Build history list from existing gh-pages (if available)
+          # Build history list from existing content in OUTDIR (copied + current)
           HISTORY_FILE_MD="$OUTDIR/history.md"
           echo "# CodeState Report History" > "$HISTORY_FILE_MD"
           echo >> "$HISTORY_FILE_MD"
           echo "Browse all published reports. Newest first." >> "$HISTORY_FILE_MD"
           echo >> "$HISTORY_FILE_MD"
           # Collect existing entries
-          if [ -d ghp/reports ]; then
-            # shellcheck disable=SC2012
-            EXISTING_INDEXES=$(find ghp/reports -type f -name index.html | sort -r)
+          if [ -d "$OUTDIR/reports" ]; then
+            EXISTING_INDEXES=$(find "$OUTDIR/reports" -type f -name index.html | sort -r)
             while IFS= read -r path; do
-              rel=${path#ghp/}
+              rel=${path#${OUTDIR}/}
               # rel like reports/pr-123/sha-abc/index.html
               dir=$(dirname "$rel")
               base=$(basename "$dir")
@@ -113,7 +117,7 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./site
           enable_jekyll: true
-          keep_files: true
+          keep_files: false
 
       - name: Upload HTML artifact
         uses: actions/upload-artifact@v4
