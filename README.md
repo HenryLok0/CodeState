@@ -10,10 +10,36 @@ Instant codebase insights in your terminal — fast, local, zero telemetry.
 
 CodeState analyzes your repository and generates detailed statistics like lines of code by extension, complexity, comment density, hotspots, contributors, and more. It renders ASCII charts in the terminal and can export JSON/HTML/Markdown for reports.
 
+## Features
+
+- Fast codebase overview with caching and .gitignore awareness
+- ASCII visuals in-terminal: pie, bar, and complexity heatmap
+- Detailed stats: files, LOC, comments, functions, complexity
+- Quality checks: duplicates, naming conventions, dead code hints
+- History insights: git hotspots/churn and contributors
+- Flexible exports: HTML, Markdown, JSON, CSV, Excel
+- Works well in CI: produce compact Markdown summaries and artifacts
+
 ## Installation
 
 ```bash
 pip install codestate
+```
+
+## Quick Start
+
+```bash
+# Option A: install via pipx (recommended for CLI tools)
+pipx install codestate
+
+# Option B: install via pip
+pip install codestate
+
+# Get a summary of the current repo
+codestate --summary
+
+# Export an HTML report
+codestate --html --output report.html
 ```
 
 ## Usage
@@ -53,8 +79,7 @@ codestate --cache-delete
 | `--min-lines <N>`      | Only show files with total lines >= N |
 | `--find <keyword/regex>` | Find all lines matching a keyword or regex in the codebase |
 | `--cache`              | Build and use cache for much faster repeated analysis (highly recommended for large codebases) |
-| `--cache-delete`       | Delete all cache data in `.codestate
-` (force rebuild cache on next run) |
+| `--cache-delete`       | Delete all cache data in `.codestate` (force rebuild cache on next run) |
 | **[Statistics & Detailed Analysis]** |             |
 | `--details`            | Show detailed statistics for each file |
 | `--dup`                | Show duplicate code blocks (5+ lines) |
@@ -206,3 +231,11 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 If you have questions or need help, please open an issue on GitHub.
 
 Thank you to all contributors and the open-source community for your support.
+
+---
+
+## Troubleshooting
+
+- Command not found: try `python -m codestate.cli` instead of `codestate`.
+- Windows path/encoding quirks: run from a local folder (avoid syncing folders) and ensure UTF-8 console.
+- Very large repos: run once with `--cache`, then subsequent commands will be much faster.
