@@ -17,6 +17,42 @@ struct Args {
     /// Show git hotspots
     #[arg(long)]
     hotspot: bool,
+
+    /// Generate a markdown project summary
+    #[arg(long)]
+    summary: bool,
+
+    /// Show detailed statistics for each file
+    #[arg(long)]
+    details: bool,
+
+    /// Export result as HTML table
+    #[arg(long)]
+    html: bool,
+
+    /// Export result as Markdown table
+    #[arg(long)]
+    md: bool,
+
+    /// Show only files with issues
+    #[arg(long)]
+    failures_only: bool,
+    
+    /// Use cache for faster analysis
+    #[arg(long)]
+    cache: bool,
+
+    /// Compare two directories
+    #[arg(long, num_args = 2)]
+    compare: Option<Vec<String>>,
+
+    /// Output file path
+    #[arg(short, long)]
+    output: Option<String>,
+    
+    /// Allow other commands to not panic
+    #[arg(short = 'x', long)]
+    exclude: Option<Vec<String>>,
 }
 
 fn main() -> Result<()> {
