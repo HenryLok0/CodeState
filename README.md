@@ -28,8 +28,9 @@ curl -L https://github.com/HenryLok0/CodeState/releases/latest/download/codestat
 chmod +x codestate
 ./codestate
 
-# Windows
-# Download codestate.exe from Releases and run it directly
+# Windows (PowerShell)
+Invoke-WebRequest -Uri "https://github.com/HenryLok0/CodeState/releases/latest/download/codestate-windows-amd64.exe" -OutFile "codestate.exe"
+.\codestate.exe
 ```
 
 ### Option 2: Build from Source
