@@ -1,8 +1,5 @@
 # CodeState
 
-[Code Size](https://github.com/HenryLok0/CodeState)
-Rust - Version
-
 [MIT License](LICENSE)
 [Stars](https://github.com/HenryLok0/CodeState/stargazers)
 
