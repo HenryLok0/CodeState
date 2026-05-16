@@ -1,0 +1,57 @@
+name: 'CodeState Analysis'
+description: 'Analyze codebase and generate statistics for PRs'
+branding:
+  icon: 'bar-chart-2'
+  color: 'blue'
+inputs:
+  args:
+    description: 'Arguments to pass to codestate (e.g., --summary)'
+    required: false
+    default: '--summary'
+  github_token:
+    description: 'GitHub Token for posting PR comments'
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install CodeState
+      shell: bash
+      run: pip install codestate
+
+    - name: Run CodeState Analysis
+      id: run_codestate
+      shell: bash
+      run: |
+        echo "Running: codestate ${{ inputs.args }}"
+        codestate ${{ inputs.args }} > codestate_report.md
+        cat codestate_report.md
+        echo "## 📊 CodeState Report" >> $GITHUB_STEP_SUMMARY
+        cat codestate_report.md >> $GITHUB_STEP_SUMMARY
+
+    - name: Comment PR
+      if: github.event_name == 'pull_request' && inputs.github_token != ''
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github_token }}
+        script: |
+          const fs = require('fs');
+          let report = '';
+          try {
+            report = fs.readFileSync('codestate_report.md', 'utf8');
+          } catch (e) {
+            console.log('Report not found');
+            return;
+          }
+          if (report.trim().length === 0) return;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 📊 CodeState Analysis Report\n\n<details><summary>Click to view details</summary>\n\n${report}\n\n</details>`
+          });

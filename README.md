@@ -12,35 +12,70 @@ CodeState analyzes your repository and generates detailed statistics like lines 
 
 ## Features
 
+- **🚀 Zero-Install:** Download the standalone binary and run it instantly. No Python required!
+- **🤖 GitHub Action Ready:** Automate PR reviews and codebase health checks effortlessly.
+- **✨ Beautiful TUI:** Gorgeous terminal UI with colors and styled tables powered by `rich`.
 - Fast codebase overview with caching and .gitignore awareness
 - ASCII visuals in-terminal: pie, bar, and complexity heatmap
 - Detailed stats: files, LOC, comments, functions, complexity
 - Quality checks: duplicates, naming conventions, dead code hints
 - History insights: git hotspots/churn and contributors
 - Flexible exports: HTML, Markdown, JSON, CSV, Excel
-- Works well in CI: produce compact Markdown summaries and artifacts
 
 ## Installation
 
+### Option 1: Zero-Install Binaries (Recommended)
+Download the standalone binary from the [Releases page](https://github.com/HenryLok0/CodeState/releases). No Python installation required!
+
 ```bash
+# Linux / macOS
+curl -L https://github.com/HenryLok0/CodeState/releases/latest/download/codestate -o codestate
+chmod +x codestate
+./codestate
+
+# Windows
+# Download codestate.exe from Releases and run it directly
+```
+
+### Option 2: Python / pip
+```bash
+# Install via pipx (recommended for CLI tools)
+pipx install codestate
+
+# Or install via pip
 pip install codestate
 ```
 
 ## Quick Start
 
 ```bash
-# Option A: install via pipx (recommended for CLI tools)
-pipx install codestate
-
-# Option B: install via pip
-pip install codestate
-
 # Get a summary of the current repo
 codestate --summary
 
 # Export an HTML report
 codestate --html --output report.html
 ```
+
+## GitHub Action (CI/CD)
+
+CodeState has built-in support for GitHub Actions! Automate codebase health checks and PR reviews by simply adding this to your `.github/workflows/pr.yml`:
+
+```yaml
+name: PR CodeState Check
+on: [pull_request]
+
+jobs:
+  codestate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CodeState Analysis
+        uses: HenryLok0/CodeState@v1
+        with:
+          args: '--summary --failures-only'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+This action will automatically run CodeState and post a beautiful report as a PR comment.
 
 ## Usage
 

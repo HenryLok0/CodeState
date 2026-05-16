@@ -112,54 +112,48 @@ def main():
     
     if args.list_extensions:
         try:
-            from colorama import Fore, Style, init as colorama_init
-            colorama_init()
-            COLORAMA = True
+            from rich.console import Console
+            from rich.table import Table
+            from rich import box
+            RICH_ENABLED = True
+            console = Console()
         except ImportError:
-            COLORAMA = False
-            class Dummy:
-                RESET = ''
-                RED = ''
-                GREEN = ''
-                YELLOW = ''
-                BLUE = ''
-                CYAN = ''
-                WHITE = ''
-                LIGHTBLACK_EX = ''
-            Fore = Style = Dummy()
+            RICH_ENABLED = False
+            console = None
+            
         analyzer = Analyzer(args.directory, file_types=args.ext, exclude_dirs=args.exclude)
         exts = {}
         for file_path in analyzer._iter_files(args.directory):
             if file_path.suffix:
                 exts[file_path.suffix] = exts.get(file_path.suffix, 0) + 1
         total_files = sum(exts.values())
-        # 標題加藍色
-        if COLORAMA:
-            print(Fore.BLUE + 'File extensions found in project:' + Style.RESET_ALL)
-            print(Fore.CYAN + 'Extension | Count | Percentage' + Style.RESET_ALL)
-            print(Fore.CYAN + '----------+-------+-----------' + Style.RESET_ALL)
+        sorted_exts = sorted(exts.items(), key=lambda x: (-x[1], x[0]))
+
+        if RICH_ENABLED:
+            table = Table(title="File extensions found in project", box=box.SIMPLE_HEAD, header_style="cyan")
+            table.add_column("Extension", justify="left")
+            table.add_column("Count", justify="right")
+            table.add_column("Percentage", justify="right")
+            
+            for ext, count in sorted_exts:
+                percentage = (count / total_files * 100) if total_files > 0 else 0
+                if percentage >= 50:
+                    p_color = "[green]"
+                elif percentage >= 10:
+                    p_color = "[yellow]"
+                else:
+                    p_color = "[bright_black]"
+                table.add_row(ext, str(count), f"{p_color}{percentage:.1f}%[/]")
+                
+            table.add_row("Total", str(total_files), "[blue]100.0%[/]")
+            console.print(table)
         else:
             print('File extensions found in project:')
             print('Extension | Count | Percentage')
             print('----------+-------+-----------')
-        sorted_exts = sorted(exts.items(), key=lambda x: (-x[1], x[0]))
-        for ext, count in sorted_exts:
-            percentage = (count / total_files * 100) if total_files > 0 else 0
-            # 百分比顏色
-            if COLORAMA:
-                if percentage >= 50:
-                    color = Fore.GREEN
-                elif percentage >= 10:
-                    color = Fore.YELLOW
-                else:
-                    color = Fore.LIGHTBLACK_EX
-                print(f'{ext:9} | {count:5} | {color}{percentage:8.1f}%{Style.RESET_ALL}')
-            else:
+            for ext, count in sorted_exts:
+                percentage = (count / total_files * 100) if total_files > 0 else 0
                 print(f'{ext:9} | {count:5} | {percentage:8.1f}%')
-        if COLORAMA:
-            print(Fore.CYAN + '----------+-------+-----------' + Style.RESET_ALL)
-            print(Fore.BLUE + f'Total     | {total_files:5} | {100.0:8.1f}%'+ Style.RESET_ALL)
-        else:
             print(f'----------+-------+-----------')
             print(f'Total     | {total_files:5} | {100.0:8.1f}%')
         sys.exit(0)

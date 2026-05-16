@@ -6,80 +6,133 @@ import os
 import csv
 import io
 import re
-# Add colorama import and fallback
+
 try:
-    from colorama import Fore, Style, init as colorama_init
-    colorama_init()
-    COLORAMA = True
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.text import Text
+    from rich import box
+    RICH_ENABLED = True
+    console = Console()
 except ImportError:
-    COLORAMA = False
-    class Dummy:
-        RESET = ''
-        RED = ''
-        GREEN = ''
-        YELLOW = ''
-        BLUE = ''
-        CYAN = ''
-        WHITE = ''
-        LIGHTBLACK_EX = ''
-    Fore = Style = Dummy()
+    RICH_ENABLED = False
+    console = None
+
+def get_console():
+    return console if RICH_ENABLED else None
 
 def ascii_bar_chart(data, value_key, label_key='ext', width=40, title=None):
     """
     Print an ASCII bar chart for the given data.
-    data: list of dicts or tuples
-    value_key: key for the value to visualize (e.g., 'total_lines')
-    label_key: key for the label (e.g., file extension)
-    width: max width of the bar
-    title: optional chart title
     """
-    if title:
-        print(f"\n{title}")
     if not data:
+        if title: print(f"\n{title}")
         print("No data to display.")
         return
+        
     max_value = max(item[value_key] for item in data)
     total = sum(item[value_key] for item in data)
     show_file_count = 'file_count' in data[0]
-    for item in data:
-        label = str(item[label_key]).ljust(8)
-        value = item[value_key]
-        bar_len = int((value / max_value) * width) if max_value else 0
-        bar = '█' * bar_len
-        percent = (value / total) * 100 if total else 0
+    
+    if RICH_ENABLED:
+        if title:
+            console.print(f"\n[bold cyan]{title}[/]")
+        table = Table(box=box.SIMPLE_HEAD, show_header=False)
+        table.add_column("Label", justify="left", style="cyan")
+        table.add_column("Bar", justify="left")
+        table.add_column("Value", justify="right", style="green")
+        table.add_column("Percent", justify="right", style="yellow")
         if show_file_count:
-            print(f"{label} | {bar} {value} ({percent:.1f}%) [{item['file_count']} files]")
-        else:
-            print(f"{label} | {bar} {value} ({percent:.1f}%)")
+            table.add_column("Files", justify="right", style="bright_black")
+            
+        for item in data:
+            label = str(item[label_key])
+            value = item[value_key]
+            bar_len = int((value / max_value) * width) if max_value else 0
+            bar = "[blue]" + "█" * bar_len + "[/blue]"
+            percent = (value / total) * 100 if total else 0
+            
+            row = [label, bar, str(value), f"{percent:.1f}%"]
+            if show_file_count:
+                row.append(f"[{item['file_count']} files]")
+            table.add_row(*row)
+        console.print(table)
+    else:
+        if title: print(f"\n{title}")
+        for item in data:
+            label = str(item[label_key]).ljust(8)
+            value = item[value_key]
+            bar_len = int((value / max_value) * width) if max_value else 0
+            bar = '█' * bar_len
+            percent = (value / total) * 100 if total else 0
+            if show_file_count:
+                print(f"{label} | {bar} {value} ({percent:.1f}%) [{item['file_count']} files]")
+            else:
+                print(f"{label} | {bar} {value} ({percent:.1f}%)")
 
 def print_comment_density(data, label_key='ext'):
     """
     Print comment density as a percentage bar chart, skip 0% and show comment line count.
     """
-    print("\nComment Density:")
-    for item in data:
-        label = str(item[label_key]).ljust(8)
-        density = item.get('comment_density', 0)
-        comment_lines = item.get('comment_lines', 0)
-        percent = int(density * 100)
-        if percent == 0:
-            continue  # Skip 0%
-        bar = '█' * (percent // 2)
-        print(f"{label} | {bar} {percent}% ({comment_lines} lines)")
+    if RICH_ENABLED:
+        console.print("\n[bold cyan]Comment Density:[/]")
+        table = Table(box=box.SIMPLE_HEAD, show_header=False)
+        table.add_column("Label", justify="left", style="cyan")
+        table.add_column("Bar", justify="left")
+        table.add_column("Percent", justify="right", style="yellow")
+        table.add_column("Lines", justify="right", style="bright_black")
+        
+        for item in data:
+            label = str(item[label_key])
+            density = item.get('comment_density', 0)
+            comment_lines = item.get('comment_lines', 0)
+            percent = int(density * 100)
+            if percent == 0:
+                continue
+            bar = "[green]" + "█" * (percent // 2) + "[/green]"
+            table.add_row(label, bar, f"{percent}%", f"({comment_lines} lines)")
+        console.print(table)
+    else:
+        print("\nComment Density:")
+        for item in data:
+            label = str(item[label_key]).ljust(8)
+            density = item.get('comment_density', 0)
+            comment_lines = item.get('comment_lines', 0)
+            percent = int(density * 100)
+            if percent == 0:
+                continue
+            bar = '█' * (percent // 2)
+            print(f"{label} | {bar} {percent}% ({comment_lines} lines)")
 
 def ascii_pie_chart(data, value_key, label_key='ext', title=None):
     """
     Print an ASCII pie chart for language distribution.
     """
-    if title:
-        print(f"\n{title}")
     total = sum(item[value_key] for item in data)
-    for item in data:
-        label = str(item[label_key]).ljust(8)
-        value = item[value_key]
-        percent = (value / total) * 100 if total else 0
-        pie = '●' * int(percent // 5)
-        print(f"{label} | {pie} {percent:.1f}%")
+    if RICH_ENABLED:
+        if title:
+            console.print(f"\n[bold cyan]{title}[/]")
+        table = Table(box=box.SIMPLE_HEAD, show_header=False)
+        table.add_column("Label", justify="left", style="cyan")
+        table.add_column("Pie", justify="left")
+        table.add_column("Percent", justify="right", style="yellow")
+        
+        for item in data:
+            label = str(item[label_key])
+            value = item[value_key]
+            percent = (value / total) * 100 if total else 0
+            pie = "[magenta]" + "●" * int(percent // 5) + "[/magenta]"
+            table.add_row(label, pie, f"{percent:.1f}%")
+        console.print(table)
+    else:
+        if title: print(f"\n{title}")
+        for item in data:
+            label = str(item[label_key]).ljust(8)
+            value = item[value_key]
+            percent = (value / total) * 100 if total else 0
+            pie = '●' * int(percent // 5)
+            print(f"{label} | {pie} {percent:.1f}%")
 
 def ascii_complexity_heatmap(file_details, title=None):
     """
@@ -215,16 +268,15 @@ def format_size(num_bytes):
 
 def print_table(rows, headers=None, title=None):
     """
-    Print a list of dicts as a pretty aligned table, with color for better readability.
+    Print a list of dicts as a pretty aligned table, with rich support if available.
     """
-    # Filter out None
     rows = [r for r in rows if r is not None]
     if not rows:
         print("No data to display.")
         return
     if headers is None:
         headers = list(rows[0].keys())
-    # If showing contributor stats, calculate workload_score and percent, sort by workload_score
+
     if all(h in headers for h in ['commit_count', 'line_count', 'file_count']):
         try:
             for r in rows:
@@ -243,8 +295,8 @@ def print_table(rows, headers=None, title=None):
             if 'workload_percent' not in headers:
                 headers.append('workload_percent')
         except Exception:
-            pass  # Fallback: do not sort or add percent if error
-    # Format size column if present
+            pass
+
     formatted_rows = []
     avg_fields = {'function_avg_length', 'avg_complexity', 'avg_comment_density', 'function_avg_length', 'function_avg_len'}
     float_fields = set(['detail_workload_score', 'simple_workload_score', 'avg_lines_per_commit'])
@@ -259,26 +311,7 @@ def print_table(rows, headers=None, title=None):
             if (k in avg_fields or k in float_fields or isinstance(new_row[k], float)) and isinstance(new_row[k], float):
                 new_row[k] = f"{new_row[k]:.1f}"
         formatted_rows.append(new_row)
-    col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
-    # Print title in blue
-    if title:
-        if COLORAMA:
-            print(Fore.BLUE + f"\n{title}" + Style.RESET_ALL)
-        else:
-            print(f"\n{title}")
-    # Print header in cyan
-    if COLORAMA:
-        header_line = ' | '.join(Fore.CYAN + str(h).ljust(w) + Style.RESET_ALL for h, w in zip(headers, col_widths))
-    else:
-        header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
-    print(header_line)
-    # Print separator in gray
-    if COLORAMA:
-        sep = Fore.LIGHTBLACK_EX + '-+-'.join('-'*w for w in col_widths) + Style.RESET_ALL
-    else:
-        sep = '-+-'.join('-'*w for w in col_widths)
-    print(sep)
-    # Find max value for each numeric column for highlight
+
     max_values = {}
     for h in headers:
         try:
@@ -287,32 +320,48 @@ def print_table(rows, headers=None, title=None):
                 max_values[h] = max(vals)
         except Exception:
             continue
-    # Print rows with color
-    for row in formatted_rows:
-        colored_row = []
-        for h, w in zip(headers, col_widths):
-            val = str(row.get(h, ''))
-            color = ''
-            reset = ''
-            # Highlight max value in green, negative in red, else default
-            if COLORAMA:
+
+    if RICH_ENABLED:
+        table = Table(title=title, box=box.ROUNDED, header_style="cyan", border_style="bright_black")
+        for h in headers:
+            table.add_column(str(h), justify="left")
+            
+        for row in formatted_rows:
+            colored_row = []
+            for h in headers:
+                val = str(row.get(h, ''))
+                color = ""
                 try:
-                    if h in max_values and (str(row.get(h, '')).replace('.', '', 1).replace('-', '', 1).isdigit()):
-                        v = float(row.get(h, 0))
+                    if h in max_values and val.replace('.', '', 1).replace('-', '', 1).isdigit():
+                        v = float(val)
                         if v == max_values[h] and v != 0:
-                            color = Fore.GREEN
+                            color = "[green]"
                         elif v < 0:
-                            color = Fore.RED
+                            color = "[red]"
                         elif v == 0:
-                            color = Fore.LIGHTBLACK_EX
-                        else:
-                            color = ''
-                        reset = Style.RESET_ALL
+                            color = "[bright_black]"
                 except Exception:
-                    color = ''
-                    reset = ''
-            colored_row.append(f"{color}{val.ljust(w)}{reset}")
-        print(' | '.join(colored_row))
+                    pass
+                if color:
+                    colored_row.append(f"{color}{val}[/]")
+                else:
+                    colored_row.append(val)
+            table.add_row(*colored_row)
+        console.print(table)
+    else:
+        col_widths = [max(len(str(h)), max(len(str(row.get(h, ''))) for row in formatted_rows)) for h in headers]
+        if title:
+            print(f"\n{title}")
+        header_line = ' | '.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
+        print(header_line)
+        sep = '-+-'.join('-'*w for w in col_widths)
+        print(sep)
+        for row in formatted_rows:
+            row_out = []
+            for h, w in zip(headers, col_widths):
+                val = str(row.get(h, ''))
+                row_out.append(val.ljust(w))
+            print(' | '.join(row_out))
 
 def csv_report(data, headers=None):
     """

@@ -18,7 +18,7 @@ setup(
         'Documentation': 'https://github.com/HenryLok0/CodeState#readme',
     },
     packages=find_packages(),
-    install_requires=['pathspec', 'openpyxl'],
+    install_requires=['pathspec', 'openpyxl', 'rich'],
     entry_points={
         'console_scripts': [
             'codestate=codestate.cli:main',
