@@ -18,7 +18,15 @@ Instant codebase insights in your terminal — fast, local, zero telemetry. Code
 
 ## Installation
 
-### Option 1: Zero-Install Binaries (Recommended)
+### Option 1: Cargo (Recommended for Windows / Rust users)
+
+If you have Rust installed, this is the best way to install CodeState without triggering Windows SmartScreen warnings.
+
+```bash
+cargo install codestate
+```
+
+### Option 2: Zero-Install Binaries
 
 Download the standalone binary from the [Releases page](https://github.com/HenryLok0/CodeState/releases). No Python installation required!
 
