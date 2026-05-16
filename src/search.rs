@@ -10,6 +10,7 @@ pub fn print_tree(dir: &str) {
     println!("Project Tree for '{}':", dir);
     let mut builder = WalkBuilder::new(dir);
     builder.hidden(false).ignore(true).git_ignore(true);
+    builder.filter_entry(|e| e.file_name().to_string_lossy() != ".git");
     let walker = builder.build();
 
     let root_depth = Path::new(dir).components().count();
@@ -54,8 +55,13 @@ pub fn find_pattern(dir: &str, pattern: &str, excludes: Option<&Vec<String>>, ex
         let exc_list = exc_list.clone();
         builder.filter_entry(move |e| {
             let file_name = e.file_name().to_string_lossy();
+            if file_name == ".git" {
+                return false;
+            }
             !exc_list.iter().any(|exc| file_name == *exc)
         });
+    } else {
+        builder.filter_entry(|e| e.file_name().to_string_lossy() != ".git");
     }
 
     let walker = builder.build();
@@ -127,8 +133,13 @@ pub fn detect_duplicates(dir: &str, excludes: Option<&Vec<String>>, exts: Option
         let exc_list = exc_list.clone();
         builder.filter_entry(move |e| {
             let file_name = e.file_name().to_string_lossy();
+            if file_name == ".git" {
+                return false;
+            }
             !exc_list.iter().any(|exc| file_name == *exc)
         });
+    } else {
+        builder.filter_entry(|e| e.file_name().to_string_lossy() != ".git");
     }
 
     let walker = builder.build();

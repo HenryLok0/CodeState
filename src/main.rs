@@ -305,6 +305,22 @@ fn main() -> Result<()> {
         file_stats.extend(scanner::scan_directory(dir, args.exclude.as_ref(), ext_filter.as_ref(), args.cache));
     }
 
+    if let Some(regexes) = &args.regex {
+        let compiled_regexes: Vec<regex::Regex> = regexes.iter()
+            .filter_map(|r| regex::Regex::new(r).ok())
+            .collect();
+        if !compiled_regexes.is_empty() {
+            file_stats.retain(|s| {
+                if let Some(p) = s.path.to_str() {
+                    let p_normalized = p.replace('\\', "/");
+                    compiled_regexes.iter().any(|re| re.is_match(&p_normalized))
+                } else {
+                    false
+                }
+            });
+        }
+    }
+
     if let Some(min_lines) = args.min_lines {
         file_stats.retain(|s| s.lines >= min_lines);
     }
@@ -432,6 +448,44 @@ fn main() -> Result<()> {
         unified_stats = Some(u_stats);
     }
 
+    let has_specific_view = args.details 
+        || args.top.is_some() 
+        || args.failures_only 
+        || args.health 
+        || args.complexity_graph 
+        || args.langdist 
+        || args.apidoc 
+        || args.typestats 
+        || args.refactor_map 
+        || args.refactor_suggest 
+        || args.autofix_suggest 
+        || args.open.is_some() 
+        || args.structure_mermaid 
+        || args.complexitymap 
+        || args.report_issues 
+        || args.badge_sustainability 
+        || args.lang_card_svg 
+        || args.badges 
+        || args.readme 
+        || args.hotspot 
+        || args.authors 
+        || args.contributors 
+        || args.contributors_detail 
+        || args.churn 
+        || args.blame.is_some() 
+        || args.trend
+        || args.find.is_some()
+        || args.tree
+        || args.dup
+        || args.list_extensions
+        || args.maxmin
+        || args.warnsize
+        || args.naming
+        || args.deadcode
+        || args.style_check
+        || args.openapi
+        || args.test_coverage.is_some();
+
     if args.md {
         let md = visualizer::generate_markdown(&aggregated, unified_stats.as_deref());
         visualizer::save_or_print(&md, args.output.as_ref());
@@ -446,7 +500,9 @@ fn main() -> Result<()> {
         visualizer::save_or_print(&json, args.output.as_ref());
     } else {
         // Normal text output
-        visualizer::print_summary_table(&aggregated);
+        if !has_specific_view || args.summary {
+            visualizer::print_summary_table(&aggregated);
+        }
 
         if let Some(ref details) = unified_stats {
             if args.details || args.top.is_some() || args.failures_only || args.size || args.file_age {

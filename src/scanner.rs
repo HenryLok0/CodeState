@@ -39,8 +39,13 @@ pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&V
         let exc_list = exc_list.clone();
         builder.filter_entry(move |e| {
             let file_name = e.file_name().to_string_lossy();
+            if file_name == ".git" {
+                return false;
+            }
             !exc_list.iter().any(|exc| file_name == *exc)
         });
+    } else {
+        builder.filter_entry(|e| e.file_name().to_string_lossy() != ".git");
     }
 
     let walker = builder.build();

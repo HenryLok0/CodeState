@@ -332,6 +332,7 @@ pub fn print_contributors_detail(stats: &[crate::git::ContributorDetail]) {
     let mut table = Table::new();
     table.set_header(vec![
         Cell::new("Contributor").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Impact %").add_attribute(Attribute::Bold).fg(Color::Magenta),
         Cell::new("Commits").add_attribute(Attribute::Bold).fg(Color::Green),
         Cell::new("Insertions").add_attribute(Attribute::Bold).fg(Color::Green),
         Cell::new("Deletions").add_attribute(Attribute::Bold).fg(Color::Red),
@@ -342,9 +343,29 @@ pub fn print_contributors_detail(stats: &[crate::git::ContributorDetail]) {
     let mut total_insertions = 0;
     let mut total_deletions = 0;
 
+    let mut total_score = 0.0;
+    let mut scores = Vec::new();
     for s in stats {
+        // Heuristic: Commits carry high weight, files changed show breadth, insertions/deletions show volume.
+        let score = (s.commits as f64 * 20.0) 
+                  + (s.insertions as f64 * 1.0) 
+                  + (s.deletions as f64 * 0.5) 
+                  + (s.files_changed.len() as f64 * 5.0);
+        scores.push(score);
+        total_score += score;
+    }
+
+    // Sort stats by score (descending), we need to clone them or work with indices
+    let mut indices: Vec<usize> = (0..stats.len()).collect();
+    indices.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal));
+
+    for &i in &indices {
+        let s = &stats[i];
+        let pct = if total_score > 0.0 { (scores[i] / total_score) * 100.0 } else { 0.0 };
+        
         table.add_row(vec![
             Cell::new(&s.name),
+            Cell::new(format!("{:.1}%", pct)).set_alignment(CellAlignment::Right).fg(Color::Magenta),
             Cell::new(s.commits).set_alignment(CellAlignment::Right),
             Cell::new(s.insertions).set_alignment(CellAlignment::Right),
             Cell::new(s.deletions).set_alignment(CellAlignment::Right),
@@ -357,6 +378,7 @@ pub fn print_contributors_detail(stats: &[crate::git::ContributorDetail]) {
 
     table.add_row(vec![
         Cell::new("Total").add_attribute(Attribute::Bold).fg(Color::Yellow),
+        Cell::new("100.0%").add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
         Cell::new(total_commits).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
         Cell::new(total_insertions).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
         Cell::new(total_deletions).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
@@ -364,6 +386,7 @@ pub fn print_contributors_detail(stats: &[crate::git::ContributorDetail]) {
     ]);
 
     println!("\n=== Detailed Contributor Statistics ===");
+    println!("* Impact % is a heuristic combining commits, insertions, deletions, and files changed.");
     println!("{table}");
 }
 
