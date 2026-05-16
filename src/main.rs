@@ -811,10 +811,21 @@ fn run_all_tests() -> Result<()> {
         ("multi", vec!["--multi", "src", "."])
     ];
 
-    let mut report_file = File::create("output/codestate_runall_report.txt")?;
+    let mut report_file = File::create("codestate_runall_report.txt")?;
     writeln!(report_file, "CodeState --runall Test Report\n")?;
 
-    let exe_path = env::current_exe()?;
+    // Try to get the current executable path, fallback to "codestate"
+    let exe_path = match env::current_exe() {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(_) => {
+            if cfg!(windows) {
+                ".\\codestate.exe".to_string()
+            } else {
+                "./codestate".to_string()
+            }
+        }
+    };
+    
     let total_tests = flags.len();
     let mut success_count = 0;
     let mut fail_count = 0;
@@ -830,21 +841,31 @@ fn run_all_tests() -> Result<()> {
         let mut cmd = Command::new(&exe_path);
         cmd.args(flag_args);
         
-        let output = cmd.output()?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        
-        writeln!(report_file, "{}", stdout)?;
-        if !stderr.is_empty() {
-            writeln!(report_file, "\n[STDERR]\n{}", stderr)?;
-        }
-        writeln!(report_file, "\n\n")?;
+        match cmd.output() {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                
+                writeln!(report_file, "{}", stdout)?;
+                if !stderr.is_empty() {
+                    writeln!(report_file, "\n[STDERR]\n{}", stderr)?;
+                }
+                writeln!(report_file, "\n\n")?;
 
-        if output.status.success() {
-            success_count += 1;
-        } else {
-            fail_count += 1;
-            failed_tests.push(flag_name);
+                if output.status.success() {
+                    success_count += 1;
+                } else {
+                    fail_count += 1;
+                    failed_tests.push(flag_name);
+                }
+            },
+            Err(e) => {
+                // If it fails to execute the process, don't crash, just log and continue
+                let err_msg = format!("Failed to execute process: {}", e);
+                writeln!(report_file, "{}\n\n", err_msg)?;
+                fail_count += 1;
+                failed_tests.push(flag_name);
+            }
         }
     }
     
@@ -857,7 +878,7 @@ fn run_all_tests() -> Result<()> {
     println!("Failed:       {}", fail_count);
     println!("Success Rate: {:.2}%", success_rate);
     println!("Time taken:   {:?}", test_elapsed);
-    println!("Details saved to output/codestate_runall_report.txt");
+    println!("Details saved to codestate_runall_report.txt");
     
     if fail_count > 0 {
         println!("\nFailed Tests:");
