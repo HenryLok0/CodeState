@@ -23,6 +23,10 @@ Instant codebase insights in your terminal — fast, local, zero telemetry. Code
 Download the standalone binary from the [Releases page](https://github.com/HenryLok0/CodeState/releases). No Python installation required!
 
 ```bash
+# Windows (PowerShell)
+Invoke-WebRequest -Uri "https://github.com/HenryLok0/CodeState/releases/latest/download/codestate-windows-amd64.exe" -OutFile "codestate.exe"
+.\codestate.exe
+
 # Linux
 curl -L https://github.com/HenryLok0/CodeState/releases/latest/download/codestate-linux-amd64 -o codestate
 chmod +x codestate
@@ -32,10 +36,6 @@ chmod +x codestate
 curl -L https://github.com/HenryLok0/CodeState/releases/latest/download/codestate-darwin-amd64 -o codestate
 chmod +x codestate
 ./codestate
-
-# Windows (PowerShell)
-Invoke-WebRequest -Uri "https://github.com/HenryLok0/CodeState/releases/latest/download/codestate-windows-amd64.exe" -OutFile "codestate.exe"
-.\codestate.exe
 ```
 
 ### Option 2: Build from Source
