@@ -100,12 +100,14 @@ pub fn get_file_authors(repo_path: &str) -> Result<HashMap<String, String>> {
         let author = commit.author().name().unwrap_or("Unknown").to_string();
         
         if let Some(prev) = previous_tree {
-            let diff = repo.diff_tree_to_tree(Some(&tree), Some(&prev), None)?;
-            for delta in diff.deltas() {
-                if let Some(path) = delta.new_file().path().and_then(|p| p.to_str()) {
-                    // Since we walk backwards in time, the first time we see a file changed
-                    // is its latest modification.
-                    file_authors.entry(path.to_string()).or_insert_with(|| author.clone());
+            if !author.to_lowercase().contains("cursor") {
+                let diff = repo.diff_tree_to_tree(Some(&tree), Some(&prev), None)?;
+                for delta in diff.deltas() {
+                    if let Some(path) = delta.new_file().path().and_then(|p| p.to_str()) {
+                        // Since we walk backwards in time, the first time we see a file changed
+                        // is its latest modification.
+                        file_authors.entry(path.to_string()).or_insert_with(|| author.clone());
+                    }
                 }
             }
         }
@@ -131,6 +133,9 @@ pub fn get_contributor_stats(repo_path: &str) -> Result<Vec<ContributorStat>> {
         let oid = oid?;
         let commit = repo.find_commit(oid)?;
         let author = commit.author().name().unwrap_or("Unknown").to_string();
+        if author.to_lowercase().contains("cursor") {
+            continue;
+        }
         *author_counts.entry(author).or_insert(0) += 1;
     }
     
@@ -160,6 +165,10 @@ pub fn get_contributors_detail(repo_path: &str) -> Result<Vec<ContributorDetail>
         let oid = oid?;
         let commit = repo.find_commit(oid)?;
         let author = commit.author().name().unwrap_or("Unknown").to_string();
+        
+        if author.to_lowercase().contains("cursor") {
+            continue;
+        }
         
         let detail = author_details.entry(author.clone()).or_insert(ContributorDetail {
             name: author.clone(),
@@ -269,6 +278,9 @@ pub fn get_file_blame(repo_path: &str, file_path: &str) -> Result<HashMap<String
     
     for hunk in blame.iter() {
         let author = hunk.final_signature().name().unwrap_or("Unknown").to_string();
+        if author.to_lowercase().contains("cursor") {
+            continue;
+        }
         let lines = hunk.lines_in_hunk();
         *author_lines.entry(author).or_insert(0) += lines;
     }
