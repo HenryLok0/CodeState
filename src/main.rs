@@ -811,7 +811,8 @@ fn run_all_tests() -> Result<()> {
         ("multi", vec!["--multi", "src", "."])
     ];
 
-    let mut report_file = File::create("codestate_runall_report.txt")?;
+    let _ = std::fs::create_dir_all("output");
+    let mut report_file = File::create("output/codestate_runall_report.txt")?;
     writeln!(report_file, "CodeState --runall Test Report\n")?;
 
     // Try to get the current executable path, fallback to "codestate"
@@ -878,7 +879,7 @@ fn run_all_tests() -> Result<()> {
     println!("Failed:       {}", fail_count);
     println!("Success Rate: {:.2}%", success_rate);
     println!("Time taken:   {:?}", test_elapsed);
-    println!("Details saved to codestate_runall_report.txt");
+    println!("Details saved to output/codestate_runall_report.txt");
     
     if fail_count > 0 {
         println!("\nFailed Tests:");

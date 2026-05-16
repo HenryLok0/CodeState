@@ -1080,7 +1080,10 @@ pub fn generate_excel(stats: &HashMap<String, ExtStats>, details: Option<&[Unifi
         }
     }
     
-    let path = output.map(|s| s.as_str()).unwrap_or("codestate_report.xlsx");
+    let path = output.map(|s| s.as_str()).unwrap_or("output/codestate_report.xlsx");
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     if let Err(e) = workbook.save(path) {
         eprintln!("! Failed to write Excel file {}: {}", path, e);
     } else {
