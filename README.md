@@ -3,8 +3,6 @@
 [MIT License](LICENSE)
 [Stars](https://github.com/HenryLok0/CodeState/stargazers)
 
-**Blazingly fast.**
-
 Instant codebase insights in your terminal — fast, local, zero telemetry. CodeState provides extreme performance while keeping its unique advanced features like Git Hotspot analysis and Code Health tracking.
 
 ## Features
@@ -144,7 +142,7 @@ CodeState's new Rust engine focuses on speed and simplicity.
 | `--file-age`                         | Show file creation and last modified time                                                             |
 | `--uncommitted`                      | Show stats for files with uncommitted changes (git diff)                                              |
 | `--size`                             | Show each file's size in bytes as a table                                                             |
-| `--list-extensions`                  | List all languages found in the project with count and percentage                               |
+| `--list-extensions`                  | List all languages found in the project with count and percentage                                     |
 | `--min-lines <N>`                    | Only show files with total lines >= N                                                                 |
 | `--find <keyword/regex>`             | Find all lines matching a keyword or regex in the codebase                                            |
 | `--cache`                            | Build and use cache for much faster repeated analysis (highly recommended for large codebases)        |
