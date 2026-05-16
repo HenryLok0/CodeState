@@ -218,6 +218,12 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    
+    if args.runall {
+        run_all_tests()?;
+        return Ok(());
+    }
+
     println!("CodeState initializing...");
     let start_time = Instant::now();
 
@@ -232,9 +238,7 @@ fn main() -> Result<()> {
         } else {
             println!("✓ No cache directory found.");
         }
-        if !args.runall {
-            return Ok(());
-        }
+        return Ok(());
     }
 
     let mut ext_filter: Option<Vec<String>> = None;
@@ -257,9 +261,7 @@ fn main() -> Result<()> {
         } else {
             println!("! --compare requires exactly two directories.");
         }
-        if !args.runall {
-            return Ok(());
-        }
+        return Ok(());
     }
 
     let mut directories_to_scan = vec![args.directory.clone()];
@@ -280,7 +282,7 @@ fn main() -> Result<()> {
     // 1. File Scanning (Parallel)
     let scan_start = Instant::now();
 
-    if args.tree || args.runall {
+    if args.tree {
         for dir in &directories_to_scan {
             search::print_tree(dir);
         }
@@ -292,7 +294,7 @@ fn main() -> Result<()> {
         }
     }
 
-    if args.dup || args.runall {
+    if args.dup {
         for dir in &directories_to_scan {
             search::detect_duplicates(dir, args.exclude.as_ref(), ext_filter.as_ref());
         }
@@ -332,12 +334,12 @@ fn main() -> Result<()> {
     let scan_elapsed = scan_start.elapsed();
     println!("✓ File scanning completed in {:?}", scan_elapsed);
 
-    if args.list_extensions || args.runall {
+    if args.list_extensions {
         println!("\n[--list-extensions] Project Extensions:");
         visualizer::print_extensions_list(&aggregated);
     }
 
-    if args.maxmin || args.runall {
+    if args.maxmin {
         println!("\n[--maxmin] Largest and Smallest files:");
         if file_stats.is_empty() {
             println!("  No files to display.");
@@ -354,12 +356,12 @@ fn main() -> Result<()> {
     // 2. Health Analysis (Parallel)
     let analysis_start = Instant::now();
     let paths: Vec<_> = file_stats.iter().map(|f| f.path.clone()).collect();
-    let check_naming = args.naming || args.autofix_suggest || args.ci || args.runall;
+    let check_naming = args.naming || args.autofix_suggest || args.ci;
     let analysis_stats = analyzer::analyze_files(&paths, check_naming);
     let analysis_elapsed = analysis_start.elapsed();
     println!("✓ Complexity & Health analysis completed in {:?}", analysis_elapsed);
     
-    if args.warnsize || args.runall {
+    if args.warnsize {
         println!("\n[--warnsize] Checking for large files...");
         for stat in &file_stats {
             if stat.lines > 300 {
@@ -368,7 +370,7 @@ fn main() -> Result<()> {
         }
     }
     
-    if args.naming || args.runall {
+    if args.naming {
         println!("\n[--naming] Checking naming conventions...");
         for stat in &analysis_stats {
             for violation in &stat.naming_violations_details {
@@ -377,7 +379,7 @@ fn main() -> Result<()> {
         }
     }
     
-    if args.deadcode || args.runall {
+    if args.deadcode {
         println!("\n[--deadcode] Searching for potential dead code...");
         let deadcode = analyzer::find_deadcode(&paths);
         if deadcode.is_empty() {
@@ -389,25 +391,22 @@ fn main() -> Result<()> {
         }
     }
 
-    if args.style_check || args.runall {
+    if args.style_check {
         advanced::style_check(&paths);
     }
 
-    if args.openapi || args.runall {
+    if args.openapi {
         advanced::generate_openapi(&paths);
     }
 
     if let Some(coverage_file) = &args.test_coverage {
         advanced::parse_test_coverage(coverage_file);
-    } else if args.runall {
-        // In runall, maybe try to parse a default if exists, or just skip
-        println!("\n[--test-coverage] Skipping because no coverage file provided.");
     }
 
     // 3. Prepare details if needed
     let complexity_threshold = args.complexity_threshold.unwrap_or(10.0);
     let mut unified_stats = None;
-    if args.details || args.top.is_some() || args.failures_only || args.health || args.complexity_graph || args.size || args.file_age || args.refactor_suggest || args.refactor_map || args.open.is_some() || args.structure_mermaid || args.complexitymap || args.excel || args.details_csv || args.groupdir_csv || args.report_issues || args.badge_sustainability || args.runall {
+    if args.details || args.top.is_some() || args.failures_only || args.health || args.complexity_graph || args.size || args.file_age || args.refactor_suggest || args.refactor_map || args.open.is_some() || args.structure_mermaid || args.complexitymap || args.excel || args.details_csv || args.groupdir_csv || args.report_issues || args.badge_sustainability {
         use std::collections::HashMap;
         let mut complexity_map = HashMap::new();
         for stat in &analysis_stats {
@@ -451,7 +450,7 @@ fn main() -> Result<()> {
 
         if let Some(ref details) = unified_stats {
             if args.details || args.top.is_some() || args.failures_only || args.size || args.file_age {
-                visualizer::print_details_table(details, args.top, args.failures_only, args.size || args.runall, args.file_age || args.runall, complexity_threshold);
+                visualizer::print_details_table(details, args.top, args.failures_only, args.size, args.file_age, complexity_threshold);
             }
         }
         
@@ -471,27 +470,27 @@ fn main() -> Result<()> {
             visualizer::print_langdist_chart(&aggregated);
         }
         
-        if args.apidoc || args.runall {
+        if args.apidoc {
             visualizer::print_apidoc_stats(&analysis_stats);
         }
         
-        if args.typestats || args.runall {
+        if args.typestats {
             visualizer::print_typestats(&analysis_stats);
         }
         
-        if args.refactor_map || args.runall {
+        if args.refactor_map {
             if let Some(ref details) = unified_stats {
                 visualizer::print_refactor_map(details, complexity_threshold);
             }
         }
         
-        if args.refactor_suggest || args.runall {
+        if args.refactor_suggest {
             if let Some(ref details) = unified_stats {
                 visualizer::print_refactor_suggest(details, complexity_threshold);
             }
         }
         
-        if args.autofix_suggest || args.runall {
+        if args.autofix_suggest {
             visualizer::print_autofix_suggest(&analysis_stats);
         }
         
@@ -503,13 +502,13 @@ fn main() -> Result<()> {
         }
     }
 
-    if args.structure_mermaid || args.runall {
+    if args.structure_mermaid {
         if let Some(ref details) = unified_stats {
             visualizer::print_structure_mermaid(details);
         }
     }
 
-    if args.complexitymap || args.runall {
+    if args.complexitymap {
         if let Some(ref details) = unified_stats {
             visualizer::print_complexitymap(details);
         }
@@ -538,13 +537,13 @@ fn main() -> Result<()> {
         visualizer::save_or_print(&csv, args.output.as_ref());
     }
 
-    if args.report_issues || args.runall {
+    if args.report_issues {
         if let Some(ref details) = unified_stats {
             visualizer::print_report_issues(details, &analysis_stats, complexity_threshold, args.json, args.output.as_ref());
         }
     }
 
-    if args.badge_sustainability || args.runall {
+    if args.badge_sustainability {
         if let Some(ref details) = unified_stats {
             let svg = visualizer::generate_badge_sustainability(details);
             println!("\n=== Sustainability Badge SVG ===");
@@ -552,7 +551,7 @@ fn main() -> Result<()> {
         }
     }
 
-    if args.lang_card_svg || args.runall {
+    if args.lang_card_svg {
         let svg = visualizer::generate_lang_card_svg(&aggregated);
         println!("\n=== Language Card SVG ===");
         visualizer::save_or_print(&svg, args.output.as_ref());
@@ -570,7 +569,7 @@ fn main() -> Result<()> {
     }
 
     // 4. Git Hotspots (Optional)
-    if args.hotspot || args.runall {
+    if args.hotspot {
         println!("\nAnalyzing Git history for hotspots...");
         let git_start = Instant::now();
         for dir in &directories_to_scan {
@@ -588,7 +587,7 @@ fn main() -> Result<()> {
         println!("✓ Git analysis completed in {:?}", git_elapsed);
     }
 
-    if args.authors || args.runall {
+    if args.authors {
         println!("\nAnalyzing Git history for file authors...");
         let git_start = Instant::now();
         for dir in &directories_to_scan {
@@ -606,7 +605,7 @@ fn main() -> Result<()> {
         println!("✓ Author analysis completed in {:?}", git_elapsed);
     }
 
-    if args.contributors || args.runall {
+    if args.contributors {
         println!("\nAnalyzing Git history for contributor stats...");
         let git_start = Instant::now();
         for dir in &directories_to_scan {
@@ -624,7 +623,7 @@ fn main() -> Result<()> {
         println!("✓ Contributor analysis completed in {:?}", git_elapsed);
     }
 
-    if args.contributors_detail || args.runall {
+    if args.contributors_detail {
         println!("\nAnalyzing Git history for detailed contributor stats...");
         let git_start = Instant::now();
         for dir in &directories_to_scan {
@@ -642,7 +641,7 @@ fn main() -> Result<()> {
         println!("✓ Detailed Contributor analysis completed in {:?}", git_elapsed);
     }
 
-    if args.churn || args.runall {
+    if args.churn {
         println!("\nAnalyzing Git history for recent file churn (30 days)...");
         let git_start = Instant::now();
         for dir in &directories_to_scan {
@@ -678,7 +677,7 @@ fn main() -> Result<()> {
         println!("✓ Blame analysis completed in {:?}", git_elapsed);
     }
 
-    if args.trend || args.runall {
+    if args.trend {
         println!("\nAnalyzing Git history for line count trend...");
         let git_start = Instant::now();
         // Just use first directory
@@ -701,52 +700,6 @@ fn main() -> Result<()> {
         println!("✓ Trend analysis completed in {:?}", git_elapsed);
     }
 
-    if args.runall {
-        println!("\n[--runall] Running self-test suite for all CLI flags...");
-        let test_start = Instant::now();
-        
-        let flags = vec![
-            "exclude", "ext", "only-lang", "top", "failures-only", "regex", "file-age",
-            "uncommitted", "size", "list-extensions", "min-lines", "find", "cache",
-            "cache-delete", "details", "dup", "maxmin", "langdist", "complexitymap",
-            "complexity-graph", "warnsize", "naming", "apidoc", "deadcode", "typestats",
-            "trend", "refactor-suggest", "autofix-suggest", "refactor-map",
-            "complexity-threshold", "open", "blame", "compare", "html", "md", "json",
-            "csv", "excel", "details-csv", "groupdir-csv", "groupext-csv", "test-coverage",
-            "output", "report-issues", "tree", "structure-mermaid", "health", "summary",
-            "badge-sustainability", "lang-card-svg", "authors", "contributors",
-            "contributors-detail", "hotspot", "churn", "ci", "badges", "readme",
-            "style-check", "openapi", "multi", "version"
-        ];
-        
-        let total_tests = flags.len();
-        let mut success_count = 0;
-        let fail_count = 0;
-        let failed_tests: Vec<&str> = Vec::new();
-
-        for flag in &flags {
-            println!("✓ Testing --{}...", flag);
-            success_count += 1;
-            // Mocking all tests as successful for now
-        }
-        
-        let test_elapsed = test_start.elapsed();
-        let success_rate = (success_count as f64 / total_tests as f64) * 100.0;
-        
-        println!("\n--- Test Results ---");
-        println!("Total Tests:  {}", total_tests);
-        println!("Successful:   {}", success_count);
-        println!("Failed:       {}", fail_count);
-        println!("Success Rate: {:.2}%", success_rate);
-        println!("Time taken:   {:?}", test_elapsed);
-        
-        if fail_count > 0 {
-            println!("\nFailed Tests:");
-            for failed in failed_tests {
-                println!("- {}", failed);
-            }
-        }
-    }
 
     let elapsed = start_time.elapsed();
     println!("\nTotal analysis completed in {:?}", elapsed);
@@ -785,5 +738,133 @@ fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn run_all_tests() -> Result<()> {
+    use std::process::Command;
+    use std::fs::File;
+    use std::io::Write;
+    use std::env;
+
+    println!("\n[--runall] Running self-test suite for all CLI flags as subprocesses...");
+    let test_start = Instant::now();
+    
+    let flags = vec![
+        ("exclude", vec!["--exclude", "src"]),
+        ("ext", vec!["--ext", "rs"]),
+        ("only-lang", vec!["--only-lang", "rs"]),
+        ("top", vec!["--top", "5"]),
+        ("failures-only", vec!["--failures-only"]),
+        ("regex", vec!["--regex", "TODO"]),
+        ("file-age", vec!["--file-age"]),
+        ("uncommitted", vec!["--uncommitted"]),
+        ("size", vec!["--size"]),
+        ("list-extensions", vec!["--list-extensions"]),
+        ("min-lines", vec!["--min-lines", "10"]),
+        ("find", vec!["--find", "fn"]),
+        ("cache", vec!["--cache"]),
+        ("details", vec!["--details"]),
+        ("dup", vec!["--dup"]),
+        ("maxmin", vec!["--maxmin"]),
+        ("langdist", vec!["--langdist"]),
+        ("complexitymap", vec!["--complexitymap"]),
+        ("complexity-graph", vec!["--complexity-graph"]),
+        ("warnsize", vec!["--warnsize"]),
+        ("naming", vec!["--naming"]),
+        ("apidoc", vec!["--apidoc"]),
+        ("deadcode", vec!["--deadcode"]),
+        ("typestats", vec!["--typestats"]),
+        ("trend", vec!["--trend"]),
+        ("refactor-suggest", vec!["--refactor-suggest"]),
+        ("autofix-suggest", vec!["--autofix-suggest"]),
+        ("refactor-map", vec!["--refactor-map"]),
+        ("complexity-threshold", vec!["--complexity-threshold", "5.0", "--failures-only"]),
+        ("open", vec!["--open", "src/main.rs"]),
+        ("blame", vec!["--blame", "src/main.rs"]),
+        ("compare", vec!["--compare", ".", "src"]),
+        ("html", vec!["--html"]),
+        ("md", vec!["--md"]),
+        ("json", vec!["--json"]),
+        ("csv", vec!["--csv"]),
+        ("excel", vec!["--excel"]),
+        ("details-csv", vec!["--details-csv"]),
+        ("groupdir-csv", vec!["--groupdir-csv"]),
+        ("groupext-csv", vec!["--groupext-csv"]),
+        ("test-coverage", vec!["--test-coverage", "coverage.xml"]),
+        ("report-issues", vec!["--report-issues"]),
+        ("tree", vec!["--tree"]),
+        ("structure-mermaid", vec!["--structure-mermaid"]),
+        ("health", vec!["--health"]),
+        ("summary", vec!["--summary"]),
+        ("badge-sustainability", vec!["--badge-sustainability"]),
+        ("lang-card-svg", vec!["--lang-card-svg"]),
+        ("authors", vec!["--authors"]),
+        ("contributors", vec!["--contributors"]),
+        ("contributors-detail", vec!["--contributors-detail"]),
+        ("hotspot", vec!["--hotspot"]),
+        ("churn", vec!["--churn"]),
+        ("badges", vec!["--badges"]),
+        ("readme", vec!["--readme"]),
+        ("style-check", vec!["--style-check"]),
+        ("openapi", vec!["--openapi"]),
+        ("multi", vec!["--multi", "src", "."])
+    ];
+
+    let mut report_file = File::create("codestate_runall_report.txt")?;
+    writeln!(report_file, "CodeState --runall Test Report\n")?;
+
+    let exe_path = env::current_exe()?;
+    let total_tests = flags.len();
+    let mut success_count = 0;
+    let mut fail_count = 0;
+    let mut failed_tests: Vec<&str> = Vec::new();
+
+    for (flag_name, flag_args) in &flags {
+        println!("✓ Testing --{}...", flag_name);
+        
+        writeln!(report_file, "============================================================")?;
+        writeln!(report_file, "執行指令: codestate {}", flag_args.join(" "))?;
+        writeln!(report_file, "============================================================")?;
+        
+        let mut cmd = Command::new(&exe_path);
+        cmd.args(flag_args);
+        
+        let output = cmd.output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        writeln!(report_file, "{}", stdout)?;
+        if !stderr.is_empty() {
+            writeln!(report_file, "\n[STDERR]\n{}", stderr)?;
+        }
+        writeln!(report_file, "\n\n")?;
+
+        if output.status.success() {
+            success_count += 1;
+        } else {
+            fail_count += 1;
+            failed_tests.push(flag_name);
+        }
+    }
+    
+    let test_elapsed = test_start.elapsed();
+    let success_rate = (success_count as f64 / total_tests as f64) * 100.0;
+    
+    println!("\n--- Test Results ---");
+    println!("Total Tests:  {}", total_tests);
+    println!("Successful:   {}", success_count);
+    println!("Failed:       {}", fail_count);
+    println!("Success Rate: {:.2}%", success_rate);
+    println!("Time taken:   {:?}", test_elapsed);
+    println!("Details saved to codestate_runall_report.txt");
+    
+    if fail_count > 0 {
+        println!("\nFailed Tests:");
+        for failed in failed_tests {
+            println!("- {}", failed);
+        }
+    }
+    
     Ok(())
 }
