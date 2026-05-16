@@ -4,6 +4,9 @@ mod git;
 mod visualizer;
 mod search;
 mod advanced;
+mod tui;
+mod sca;
+mod policy;
 
 use clap::Parser;
 use std::time::Instant;
@@ -156,6 +159,18 @@ struct Args {
     excel: bool,
 
     #[arg(long)]
+    sarif: bool,
+
+    #[arg(long)]
+    sca: bool,
+
+    #[arg(long)]
+    check_policy: bool,
+
+    #[arg(long)]
+    generate_dashboard: bool,
+
+    #[arg(long)]
     details_csv: bool,
 
     #[arg(long)]
@@ -218,6 +233,10 @@ struct Args {
     /// Sort by a specific column (e.g., files, lines, code, comments, blanks, language)
     #[arg(long)]
     sort: Option<String>,
+
+    /// Launch interactive TUI mode
+    #[arg(long, short = 'i')]
+    interactive: bool,
 }
 
 fn main() -> Result<()> {
@@ -423,10 +442,14 @@ fn main() -> Result<()> {
         advanced::parse_test_coverage(coverage_file);
     }
 
+    if args.sca {
+        sca::analyze_lockfiles(&paths);
+    }
+
     // 3. Prepare details if needed
     let complexity_threshold = args.complexity_threshold.unwrap_or(10.0);
     let mut unified_stats = None;
-    if args.details || args.top.is_some() || args.failures_only || args.health || args.complexity_graph || args.size || args.file_age || args.refactor_suggest || args.refactor_map || args.open.is_some() || args.structure_mermaid || args.complexitymap || args.excel || args.details_csv || args.groupdir_csv || args.report_issues || args.badge_sustainability {
+    if args.details || args.top.is_some() || args.failures_only || args.health || args.complexity_graph || args.size || args.file_age || args.refactor_suggest || args.refactor_map || args.open.is_some() || args.structure_mermaid || args.complexitymap || args.excel || args.details_csv || args.groupdir_csv || args.report_issues || args.badge_sustainability || args.sarif {
         use std::collections::HashMap;
         let mut complexity_map = HashMap::new();
         for stat in &analysis_stats {
@@ -435,7 +458,8 @@ fn main() -> Result<()> {
 
         let mut u_stats = Vec::new();
         for stat in &file_stats {
-            let complexity = complexity_map.get(&stat.path).cloned().unwrap_or(0.0);
+            // we no longer rely on analyzer for complexity, but we can combine if needed.
+            // Let's use the extremely fast byte scanner's complexity and todo count!
             u_stats.push(visualizer::UnifiedStats {
                 path: stat.path.to_string_lossy().to_string(),
                 language: stat.language.clone(),
@@ -443,7 +467,9 @@ fn main() -> Result<()> {
                 code: stat.code_lines,
                 comments: stat.comment_lines,
                 blanks: stat.blank_lines,
-                complexity,
+                complexity: stat.complexity,
+                todo_count: stat.todo_count,
+                secrets_found: stat.secrets_found,
                 size_bytes: stat.size_bytes,
                 created_at: stat.created_at,
                 modified_at: stat.modified_at,
@@ -488,7 +514,9 @@ fn main() -> Result<()> {
         || args.deadcode
         || args.style_check
         || args.openapi
-        || args.test_coverage.is_some();
+        || args.test_coverage.is_some()
+        || args.sarif
+        || args.check_policy;
 
     if args.md {
         let md = visualizer::generate_markdown(&aggregated, unified_stats.as_deref());
@@ -502,7 +530,31 @@ fn main() -> Result<()> {
     } else if args.json {
         let json = visualizer::generate_json(&aggregated);
         visualizer::save_or_print(&json, args.output.as_ref());
+    } else if args.sarif {
+        if let Some(ref details) = unified_stats {
+            let sarif = visualizer::generate_sarif(details);
+            visualizer::save_or_print(&sarif, args.output.as_ref());
+        } else {
+            println!("! SARIF export requires file details. Please run with `--sarif --details` or another detail-triggering flag if not automatically triggered.");
+            // But we actually trigger it manually below if it's missing, wait, args.sarif isn't in has_specific_view. Let's fix that too.
+        }
     } else {
+        // Interactive TUI output
+        if args.interactive {
+            if let Err(e) = tui::run_tui(aggregated.clone(), unified_stats.clone().unwrap_or_default()) {
+                eprintln!("TUI Error: {}", e);
+            }
+            return Ok(());
+        }
+
+        // Interactive TUI output
+        if args.interactive {
+            if let Err(e) = tui::run_tui(aggregated.clone(), unified_stats.clone().unwrap_or_default()) {
+                eprintln!("TUI Error: {}", e);
+            }
+            return Ok(());
+        }
+
         // Normal text output
         if !has_specific_view || args.summary {
             visualizer::print_summary_table(&aggregated, args.sort.as_ref());
@@ -634,9 +686,9 @@ fn main() -> Result<()> {
         let git_start = Instant::now();
         for dir in &directories_to_scan {
             println!("  Directory: {}", dir);
-            match git::get_git_hotspots(dir, 10) {
+            match git::get_git_hotspots(dir, 15) { // increased to 15 to show more context
                 Ok(hotspots) => {
-                    visualizer::print_git_hotspots(&hotspots);
+                    visualizer::print_git_hotspots(&hotspots, unified_stats.as_deref());
                 },
                 Err(e) => {
                     println!("! Could not perform Git analysis: {}", e);
@@ -764,6 +816,39 @@ fn main() -> Result<()> {
     let elapsed = start_time.elapsed();
     println!("\nTotal analysis completed in {:?}", elapsed);
     
+    if args.generate_dashboard {
+        if let Some(ref details) = unified_stats {
+            let html = visualizer::generate_dashboard(&aggregated, details);
+            let path = args.output.clone().unwrap_or_else(|| "output/dashboard.html".to_string());
+            visualizer::save_or_print(&html, Some(&path));
+        } else {
+            println!("! Dashboard requires file details. Please run with `--generate-dashboard --details`.");
+        }
+    }
+
+    if args.check_policy {
+        if let Some(ref details) = unified_stats {
+            let html = visualizer::generate_dashboard(&aggregated, details);
+            let path = args.output.clone().unwrap_or_else(|| "output/dashboard.html".to_string());
+            visualizer::save_or_print(&html, Some(&path));
+        } else {
+            println!("! Dashboard requires file details. Please run with `--generate-dashboard --details`.");
+        }
+    }
+    if args.check_policy {
+        if let Some(ref details) = unified_stats {
+            let mut all_passed = true;
+            for dir in &directories_to_scan {
+                if !policy::check_policy(dir, details) {
+                    all_passed = false;
+                }
+            }
+            if !all_passed {
+                std::process::exit(1);
+            }
+        }
+    }
+    
     if args.ci {
         let mut has_issues = false;
         
@@ -869,7 +954,10 @@ fn run_all_tests() -> Result<()> {
         ("style-check", vec!["--style-check"]),
         ("openapi", vec!["--openapi"]),
         ("multi", vec!["--multi", "src", "."]),
-        ("sort", vec!["--sort", "lines"])
+        ("sort", vec!["--sort", "lines"]),
+        ("sca", vec!["--sca"]),
+        ("check-policy", vec!["--check-policy", "--details"]),
+        ("generate-dashboard", vec!["--generate-dashboard", "--details"])
     ];
 
     let _ = std::fs::create_dir_all("output");

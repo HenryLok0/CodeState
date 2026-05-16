@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use regex::Regex;
 use std::sync::OnceLock;
+use tree_sitter::Parser;
 
 static FUNC_REGEX: OnceLock<Regex> = OnceLock::new();
 static CLASS_REGEX: OnceLock<Regex> = OnceLock::new();
@@ -47,6 +48,38 @@ pub fn analyze_files(paths: &[PathBuf], check_naming: bool) -> Vec<AnalyzerStats
         .collect()
 }
 
+fn extract_rust_functions(content: &str) -> Vec<String> {
+    let mut parser = Parser::new();
+    if parser.set_language(&tree_sitter_rust::LANGUAGE.into()).is_err() {
+        return Vec::new();
+    }
+    
+    let mut funcs = Vec::new();
+    if let Some(tree) = parser.parse(content, None) {
+        let mut queue = vec![tree.root_node()];
+        
+        while let Some(node) = queue.pop() {
+            if node.kind() == "function_item" {
+                // Find identifier child
+                let mut c = node.walk();
+                for child in node.children(&mut c) {
+                    if child.kind() == "identifier" {
+                        if let Ok(name) = child.utf8_text(content.as_bytes()) {
+                            funcs.push(name.to_string());
+                        }
+                    }
+                }
+            }
+            
+            let mut c = node.walk();
+            for child in node.children(&mut c) {
+                queue.push(child);
+            }
+        }
+    }
+    funcs
+}
+
 fn is_word_character(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -57,6 +90,10 @@ fn analyze_file(path: &Path, ac: &AhoCorasick, check_naming: bool) -> Option<Ana
     let mut complexity = 0.0;
     let mut todo_count = 0;
     let mut functions_count = 0;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let is_rust = ext == "rs";
+    let is_py = ext == "py";
+    let is_rust_or_py = is_rust || is_py;
     
     for line in content.lines() {
         let padded = format!(" {} ", line);
@@ -69,11 +106,12 @@ fn analyze_file(path: &Path, ac: &AhoCorasick, check_naming: bool) -> Option<Ana
                 // Complexity keywords
                 complexity += 1.0;
             } else if pid < 13 {
-                // Functions
-                // Ensure it's not part of another word (e.g. "my_def " shouldn't match "def ")
-                let start = mat.start();
-                if start == 0 || !is_word_character(bytes[start - 1]) {
-                    functions_count += 1;
+                // Functions (regex-based fallback)
+                if !is_rust {
+                    let start = mat.start();
+                    if start == 0 || !is_word_character(bytes[start - 1]) {
+                        functions_count += 1;
+                    }
                 }
             } else {
                 // TODO / FIXME
@@ -88,6 +126,10 @@ fn analyze_file(path: &Path, ac: &AhoCorasick, check_naming: bool) -> Option<Ana
                 }
             }
         }
+    }
+    
+    if is_rust {
+        functions_count = extract_rust_functions(&content).len();
     }
     
     let mut naming_violations_details = Vec::new();
@@ -157,9 +199,15 @@ pub fn find_deadcode(paths: &[PathBuf]) -> Vec<String> {
         .filter_map(|path| {
             if let Ok(content) = fs::read_to_string(path) {
                 let mut local_funcs = Vec::new();
-                for cap in func_re.captures_iter(&content) {
-                    if let Some(m) = cap.get(1) {
-                        local_funcs.push(m.as_str().to_string());
+                let is_rust = path.extension().map_or(false, |e| e == "rs");
+                
+                if is_rust {
+                    local_funcs = extract_rust_functions(&content);
+                } else {
+                    for cap in func_re.captures_iter(&content) {
+                        if let Some(m) = cap.get(1) {
+                            local_funcs.push(m.as_str().to_string());
+                        }
                     }
                 }
                 Some(local_funcs)

@@ -4,6 +4,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::hash::BuildHasher;
 
 /// Print a tree view of the directory structure
 pub fn print_tree(dir: &str) {
@@ -161,12 +162,11 @@ pub fn detect_duplicates(dir: &str, excludes: Option<&Vec<String>>, exts: Option
         })
         .collect();
 
-    // Collect all blocks
+    // Collect all blocks using hash-based matching for extreme performance
     let window_size = 5;
     
-    // We cannot easily parallelize insertion into a single HashMap without a mutex.
-    // Instead, map paths in parallel to their blocks, then reduce sequentially.
-    let file_blocks: Vec<Vec<(String, PathBuf, usize)>> = paths
+    // We compute a hash for each block instead of allocating Strings
+    let file_blocks: Vec<Vec<(u64, PathBuf, usize)>> = paths
         .into_par_iter()
         .filter_map(|path| {
             let content = match fs::read_to_string(&path) {
@@ -188,21 +188,22 @@ pub fn detect_duplicates(dir: &str, excludes: Option<&Vec<String>>, exts: Option
 
             let mut blocks = Vec::new();
             for i in 0..=(lines.len() - window_size) {
-                let mut block_content = String::new();
+                let mut hasher = foldhash::fast::FixedState::default().build_hasher();
+                use std::hash::Hasher;
                 for j in 0..window_size {
-                    block_content.push_str(&lines[i + j].1);
-                    block_content.push('\n');
+                    hasher.write(lines[i + j].1.as_bytes());
                 }
-                blocks.push((block_content, path.clone(), lines[i].0));
+                let hash = hasher.finish();
+                blocks.push((hash, path.clone(), lines[i].0));
             }
             Some(blocks)
         })
         .collect();
 
-    let mut block_map: HashMap<String, Vec<(PathBuf, usize)>> = HashMap::new();
+    let mut block_map: HashMap<u64, Vec<(PathBuf, usize)>> = HashMap::new();
     for blocks in file_blocks {
-        for (content, path, line_num) in blocks {
-            block_map.entry(content).or_default().push((path, line_num));
+        for (hash, path, line_num) in blocks {
+            block_map.entry(hash).or_default().push((path, line_num));
         }
     }
 
@@ -222,7 +223,7 @@ pub fn detect_duplicates(dir: &str, excludes: Option<&Vec<String>>, exts: Option
     let display_limit = 10;
     println!("\nTop {} duplicated blocks:\n", display_limit.min(duplicates.len()));
 
-    for (i, (block, locs)) in duplicates.iter().take(display_limit).enumerate() {
+    for (i, (_, locs)) in duplicates.iter().take(display_limit).enumerate() {
         println!("--- Duplicate Block {} ({} occurrences) ---", i + 1, locs.len());
         for (path, line_num) in locs.iter().take(5) {
             println!("  Found in {} at line {}", path.display(), line_num);
@@ -231,9 +232,22 @@ pub fn detect_duplicates(dir: &str, excludes: Option<&Vec<String>>, exts: Option
             println!("  ... and {} more locations", locs.len() - 5);
         }
         println!("Preview:");
-        let preview: Vec<&str> = block.lines().take(window_size).collect();
-        for line in preview {
-            println!("> {}", line);
+        // Re-read to get preview for the first location
+        if let Some((path, start_line)) = locs.first() {
+            if let Ok(content) = fs::read_to_string(path) {
+                let mut printed = 0;
+                for (idx, line) in content.lines().enumerate() {
+                    if idx + 1 >= *start_line {
+                        if line.trim().len() > 3 {
+                            println!("> {}", line.trim());
+                            printed += 1;
+                        }
+                        if printed >= window_size {
+                            break;
+                        }
+                    }
+                }
+            }
         }
         println!();
     }

@@ -13,6 +13,9 @@ pub struct FileStats {
     pub blank_lines: usize,
     pub comment_lines: usize,
     pub code_lines: usize,
+    pub complexity: f64,
+    pub todo_count: usize,
+    pub secrets_found: usize,
     pub size_bytes: u64,
     pub created_at: Option<SystemTime>,
     pub modified_at: Option<SystemTime>,
@@ -192,88 +195,251 @@ pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&V
 }
 
 fn analyze_file(path: &Path) -> Option<FileStats> {
-    // Read the file as raw bytes to handle potentially non-utf8 cleanly, 
-    // or just read_to_string and skip if invalid. We'll stick to string for simplicity 
-    // but a production tool would read lossy strings or bytes.
-    let content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => String::from_utf8_lossy(&fs::read(path).ok()?).into_owned(),
-    };
+    // 1. Zero-Allocation Byte Scanner
+    // Read raw bytes instead of allocating and splitting strings for extreme performance.
+    let bytes = fs::read(path).ok()?;
     
     let language = get_language_name(path);
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| format!(".{}", s))
-        .unwrap_or_else(|| "".to_string());
+        .unwrap_or("")
+        .to_lowercase();
+
+    let is_c_style = matches!(ext.as_str(), "c" | "cpp" | "h" | "hpp" | "js" | "ts" | "jsx" | "tsx" | "java" | "rs" | "go" | "cs" | "swift" | "kt" | "php");
+    let is_py_style = matches!(ext.as_str(), "py" | "sh" | "rb" | "pl" | "yml" | "yaml");
+    let is_html_style = matches!(ext.as_str(), "html" | "xml" | "vue" | "svelte" | "md");
 
     let mut lines = 0;
     let mut blank_lines = 0;
     let mut comment_lines = 0;
+    let mut code_lines = 0;
+    let mut complexity = 0.0;
+    let mut todo_count = 0;
+    let mut secrets_found = 0;
+    
+    // 2. Semantic Accuracy State Machine
+    let mut in_string = false;
+    let mut string_char = b'\0';
     let mut in_block_comment = false;
+    let mut in_line_comment = false;
+    let mut block_char = b'\0';
+    
+    let mut line_has_code = false;
+    let mut line_has_comment = false;
+    let mut escaped = false;
+    
+    let mut word_start = 0;
+    let mut in_word = false;
 
-    let is_c_style = matches!(ext.as_str(), ".c" | ".cpp" | ".h" | ".hpp" | ".js" | ".ts" | ".jsx" | ".tsx" | ".java" | ".rs" | ".go" | ".cs" | ".swift" | ".kt" | ".php");
-    let is_py_style = matches!(ext.as_str(), ".py" | ".sh" | ".rb" | ".pl" | ".yml" | ".yaml");
-    let is_html_style = matches!(ext.as_str(), ".html" | ".xml" | ".vue" | ".svelte" | ".md");
+    let len = bytes.len();
+    let mut i = 0;
 
-    for line in content.lines() {
-        lines += 1;
-        let trimmed = line.trim();
+    if len > 0 {
+        lines = 1;
+    }
 
-        if trimmed.is_empty() {
-            blank_lines += 1;
+    while i < len {
+        let b = bytes[i];
+        
+        let is_alpha = b.is_ascii_alphanumeric() || b == b'_' || b == b'-';
+        
+        if is_alpha {
+            if !in_word {
+                in_word = true;
+                word_start = i;
+            }
+        } else {
+            if in_word {
+                let word = &bytes[word_start..i];
+                if !in_string && !in_block_comment && !in_line_comment {
+                    match word {
+                        b"if" | b"for" | b"while" | b"match" | b"catch" | b"case" | b"try" | b"except" => {
+                            complexity += 1.0;
+                        }
+                        _ => {}
+                    }
+                } else if in_block_comment || in_line_comment {
+                    if word.len() == 4 && word.eq_ignore_ascii_case(b"TODO") {
+                        todo_count += 1;
+                    } else if word.len() == 4 && word.eq_ignore_ascii_case(b"HACK") {
+                        todo_count += 1;
+                    } else if word.len() == 5 && word.eq_ignore_ascii_case(b"FIXME") {
+                        todo_count += 1;
+                    }
+                }
+                
+                // Secret Scanning
+                if word.starts_with(b"AKIA") || word.starts_with(b"ghp_") || word.starts_with(b"sk_live_") || word.starts_with(b"xoxb-") {
+                    secrets_found += 1;
+                }
+                
+                in_word = false;
+            }
+            
+            if !in_string && !in_block_comment && !in_line_comment {
+                if b == b'?' {
+                    complexity += 1.0;
+                } else if b == b'&' && i + 1 < len && bytes[i + 1] == b'&' {
+                    complexity += 1.0;
+                    // Don't skip i+=1 here because we still need to process b'\n' and other logic.
+                    // Instead, we just let it process the second '&' normally, it won't trigger anything.
+                } else if b == b'|' && i + 1 < len && bytes[i + 1] == b'|' {
+                    complexity += 1.0;
+                }
+            }
+        }
+
+        if b == b'\n' {
+            if !line_has_code && !line_has_comment {
+                blank_lines += 1;
+            } else if line_has_comment && !line_has_code {
+                comment_lines += 1;
+            } else {
+                code_lines += 1;
+            }
+            if i + 1 < len {
+                lines += 1;
+            }
+            in_line_comment = false;
+            line_has_code = false;
+            line_has_comment = false;
+            escaped = false;
+            i += 1;
+            continue;
+        }
+
+        if b == b'\r' {
+            i += 1;
+            continue;
+        }
+
+        let is_ws = b == b' ' || b == b'\t';
+
+        if in_line_comment {
+            i += 1;
             continue;
         }
 
         if in_block_comment {
-            comment_lines += 1;
-            if (is_c_style && trimmed.contains("*/")) || 
-               (is_py_style && (trimmed.contains("\"\"\"") || trimmed.contains("'''"))) ||
-               (is_html_style && trimmed.contains("-->")) {
+            line_has_comment = true;
+            if is_c_style && b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
                 in_block_comment = false;
+                i += 2;
+                continue;
+            } else if is_html_style && b == b'-' && i + 2 < len && bytes[i + 1] == b'-' && bytes[i + 2] == b'>' {
+                in_block_comment = false;
+                i += 3;
+                continue;
+            } else if is_py_style && b == block_char && i + 2 < len && bytes[i + 1] == block_char && bytes[i + 2] == block_char {
+                in_block_comment = false;
+                i += 3;
+                continue;
             }
+            i += 1;
             continue;
         }
 
-        let is_comment = if is_c_style {
-            if trimmed.starts_with("/*") {
-                if !trimmed.contains("*/") {
-                    in_block_comment = true;
-                }
-                true
+        if in_string {
+            line_has_code = true;
+            if b == b'\\' && !escaped {
+                escaped = true;
+            } else if b == string_char && !escaped {
+                in_string = false;
+                escaped = false;
             } else {
-                trimmed.starts_with("//")
+                escaped = false;
             }
-        } else if is_py_style {
-            if trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''") {
-                let quote = &trimmed[0..3];
-                // Check if it's closed on the same line
-                if trimmed.len() == 3 || !trimmed[3..].contains(quote) {
-                    in_block_comment = true;
-                }
-                true
-            } else {
-                trimmed.starts_with('#')
-            }
-        } else if is_html_style {
-            if trimmed.starts_with("<!--") {
-                if !trimmed.contains("-->") {
-                    in_block_comment = true;
-                }
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+            i += 1;
+            continue;
+        }
 
-        if is_comment {
-            comment_lines += 1;
+        if !is_ws {
+            if is_py_style && (b == b'"' || b == b'\'') && i + 2 < len && bytes[i + 1] == b && bytes[i + 2] == b {
+                in_block_comment = true;
+                block_char = b;
+                line_has_comment = true;
+                i += 3;
+                continue;
+            }
+
+            if b == b'"' || b == b'\'' || b == b'`' {
+                in_string = true;
+                string_char = b;
+                line_has_code = true;
+                i += 1;
+                continue;
+            }
+
+            if is_c_style && b == b'/' && i + 1 < len {
+                if bytes[i + 1] == b'/' {
+                    in_line_comment = true;
+                    line_has_comment = true;
+                    i += 2;
+                    continue;
+                } else if bytes[i + 1] == b'*' {
+                    in_block_comment = true;
+                    line_has_comment = true;
+                    i += 2;
+                    continue;
+                }
+            } else if is_py_style && b == b'#' {
+                in_line_comment = true;
+                line_has_comment = true;
+                i += 1;
+                continue;
+            } else if is_html_style && b == b'<' && i + 3 < len && bytes[i + 1] == b'!' && bytes[i + 2] == b'-' && bytes[i + 3] == b'-' {
+                in_block_comment = true;
+                line_has_comment = true;
+                i += 4;
+                continue;
+            }
+
+            line_has_code = true;
+        }
+
+        i += 1;
+    }
+    
+    // Check if ended while in word
+    if in_word {
+        let word = &bytes[word_start..len];
+        if !in_string && !in_block_comment && !in_line_comment {
+            match word {
+                b"if" | b"for" | b"while" | b"match" | b"catch" | b"case" | b"try" | b"except" => {
+                    complexity += 1.0;
+                }
+                _ => {}
+            }
+            // Secret Scanning
+            if word.starts_with(b"AKIA") || word.starts_with(b"ghp_") || word.starts_with(b"sk_live_") || word.starts_with(b"xoxb-") {
+                secrets_found += 1;
+            }
+        } else if in_block_comment || in_line_comment {
+            if word.len() == 4 && word.eq_ignore_ascii_case(b"TODO") {
+                todo_count += 1;
+            } else if word.len() == 4 && word.eq_ignore_ascii_case(b"HACK") {
+                todo_count += 1;
+            } else if word.len() == 5 && word.eq_ignore_ascii_case(b"FIXME") {
+                todo_count += 1;
+            }
+        }
+        
+        // Secret Scanning at EOF
+        if word.starts_with(b"AKIA") || word.starts_with(b"ghp_") || word.starts_with(b"sk_live_") || word.starts_with(b"xoxb-") {
+            secrets_found += 1;
         }
     }
 
-    let code_lines = lines - blank_lines - comment_lines;
+    if len > 0 && bytes[len - 1] != b'\n' {
+        if !line_has_code && !line_has_comment {
+            blank_lines += 1;
+        } else if line_has_comment && !line_has_code {
+            comment_lines += 1;
+        } else {
+            code_lines += 1;
+        }
+    }
 
     let (size_bytes, created_at, modified_at) = fs::metadata(path).map(|m| {
         (
@@ -290,6 +456,9 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
         blank_lines,
         comment_lines,
         code_lines,
+        complexity,
+        todo_count,
+        secrets_found,
         size_bytes,
         created_at,
         modified_at,
@@ -306,12 +475,18 @@ pub fn aggregate_by_ext(stats: &[FileStats]) -> HashMap<String, LangStats> {
             blank_lines: 0,
             comment_lines: 0,
             code_lines: 0,
+            complexity: 0.0,
+            todo_count: 0,
+            secrets_found: 0,
         });
         entry.file_count += 1;
         entry.lines += stat.lines;
         entry.blank_lines += stat.blank_lines;
         entry.comment_lines += stat.comment_lines;
         entry.code_lines += stat.code_lines;
+        entry.complexity += stat.complexity;
+        entry.todo_count += stat.todo_count;
+        entry.secrets_found += stat.secrets_found;
     }
     map
 }
@@ -324,4 +499,7 @@ pub struct LangStats {
     pub blank_lines: usize,
     pub comment_lines: usize,
     pub code_lines: usize,
+    pub complexity: f64,
+    pub todo_count: usize,
+    pub secrets_found: usize,
 }

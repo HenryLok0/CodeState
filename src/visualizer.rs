@@ -3,7 +3,7 @@ use crate::scanner::LangStats;
 use std::collections::HashMap;
 use rust_xlsxwriter::{Workbook, Format, Color as XlsxColor};
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub struct UnifiedStats {
     pub path: String,
     pub language: String,
@@ -12,6 +12,8 @@ pub struct UnifiedStats {
     pub comments: usize,
     pub blanks: usize,
     pub complexity: f64,
+    pub todo_count: usize,
+    pub secrets_found: usize,
     pub size_bytes: u64,
     #[serde(skip)]
     pub created_at: Option<std::time::SystemTime>,
@@ -226,6 +228,8 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
         Cell::new("Code").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Comments").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Blanks").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Cmplx").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("TODOs").add_attribute(Attribute::Bold).fg(Color::Cyan),
     ]);
 
     let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
@@ -239,6 +243,8 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
             "comments" => sorted_stats.sort_by(|a, b| b.comment_lines.cmp(&a.comment_lines)),
             "blanks" => sorted_stats.sort_by(|a, b| b.blank_lines.cmp(&a.blank_lines)),
             "language" => sorted_stats.sort_by(|a, b| a.language.cmp(&b.language)),
+            "complexity" => sorted_stats.sort_by(|a, b| b.complexity.partial_cmp(&a.complexity).unwrap_or(std::cmp::Ordering::Equal)),
+            "todos" => sorted_stats.sort_by(|a, b| b.todo_count.cmp(&a.todo_count)),
             _ => sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines)),
         }
     } else {
@@ -250,6 +256,8 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
     let mut total_code = 0;
     let mut total_comments = 0;
     let mut total_blanks = 0;
+    let mut total_complexity = 0.0;
+    let mut total_todos = 0;
 
     for s in sorted_stats {
         table.add_row(vec![
@@ -259,12 +267,16 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
             Cell::new(s.code_lines).set_alignment(CellAlignment::Right),
             Cell::new(s.comment_lines).set_alignment(CellAlignment::Right),
             Cell::new(s.blank_lines).set_alignment(CellAlignment::Right),
+            Cell::new(format!("{:.1}", s.complexity)).set_alignment(CellAlignment::Right),
+            Cell::new(s.todo_count).set_alignment(CellAlignment::Right),
         ]);
         total_files += s.file_count;
         total_lines += s.lines;
         total_code += s.code_lines;
         total_comments += s.comment_lines;
         total_blanks += s.blank_lines;
+        total_complexity += s.complexity;
+        total_todos += s.todo_count;
     }
 
     table.add_row(vec![
@@ -274,6 +286,8 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
         Cell::new(total_code).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
         Cell::new(total_comments).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
         Cell::new(total_blanks).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
+        Cell::new(format!("{:.1}", total_complexity)).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
+        Cell::new(total_todos).add_attribute(Attribute::Bold).set_alignment(CellAlignment::Right).fg(Color::Yellow),
     ]);
 
     println!("\n{table}");
@@ -298,21 +312,73 @@ pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&
     }
 }
 
-pub fn print_git_hotspots(hotspots: &[crate::git::Hotspot]) {
+pub fn print_git_hotspots(hotspots: &[crate::git::Hotspot], details: Option<&[UnifiedStats]>) {
     let mut table = Table::new();
-    table.set_header(vec![
-        Cell::new("File Path").add_attribute(Attribute::Bold).fg(Color::Cyan),
-        Cell::new("Commits (Hotspot)").add_attribute(Attribute::Bold).fg(Color::Red),
-    ]);
-
-    for h in hotspots {
-        table.add_row(vec![
-            Cell::new(&h.path),
-            Cell::new(h.commits).set_alignment(CellAlignment::Right),
+    
+    if let Some(details_slice) = details {
+        table.set_header(vec![
+            Cell::new("File Path").add_attribute(Attribute::Bold).fg(Color::Cyan),
+            Cell::new("Commits (Churn)").add_attribute(Attribute::Bold).fg(Color::Red),
+            Cell::new("Complexity").add_attribute(Attribute::Bold).fg(Color::Yellow),
+            Cell::new("Risk Level").add_attribute(Attribute::Bold).fg(Color::Magenta),
         ]);
+
+        // Create a map of path to complexity
+        let mut complexity_map = HashMap::new();
+        for d in details_slice {
+            let normalized_path = d.path.replace('\\', "/");
+            complexity_map.insert(normalized_path, d.complexity);
+        }
+
+        // Sort hotspots by risk score (commits * complexity)
+        let mut scored_hotspots: Vec<(&crate::git::Hotspot, f64)> = hotspots.iter().map(|h| {
+            let normalized_path = h.path.replace('\\', "/");
+            // If complexity isn't found (e.g. not scanned because it's not code), default to 0.0
+            let cmplx = complexity_map.get(&normalized_path).cloned().unwrap_or(0.0);
+            let score = h.commits as f64 * cmplx;
+            (h, score)
+        }).collect();
+        
+        scored_hotspots.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (h, score) in scored_hotspots {
+            let normalized_path = h.path.replace('\\', "/");
+            let cmplx = complexity_map.get(&normalized_path).cloned().unwrap_or(0.0);
+            
+            let risk = if score > 50.0 {
+                "High \u{26A0}"
+            } else if score > 20.0 {
+                "Medium"
+            } else {
+                "Low"
+            };
+
+            table.add_row(vec![
+                Cell::new(&h.path),
+                Cell::new(h.commits).set_alignment(CellAlignment::Right),
+                Cell::new(format!("{:.1}", cmplx)).set_alignment(CellAlignment::Right),
+                Cell::new(risk),
+            ]);
+        }
+        
+        println!("\n=== Churn vs Complexity Matrix (High Risk Hotspots) ===");
+        println!("* Risk Score = Commits * Complexity. High risk files need refactoring.");
+    } else {
+        table.set_header(vec![
+            Cell::new("File Path").add_attribute(Attribute::Bold).fg(Color::Cyan),
+            Cell::new("Commits (Hotspot)").add_attribute(Attribute::Bold).fg(Color::Red),
+        ]);
+
+        for h in hotspots {
+            table.add_row(vec![
+                Cell::new(&h.path),
+                Cell::new(h.commits).set_alignment(CellAlignment::Right),
+            ]);
+        }
+        println!("\n=== Git Hotspots ===");
     }
 
-    println!("\n{table}");
+    println!("{table}");
 }
 
 pub fn print_file_authors(authors_map: &HashMap<String, String>) {
@@ -552,7 +618,7 @@ pub fn save_or_print(content: &str, output: Option<&String>) {
         if let Err(e) = std::fs::write(path, content) {
             eprintln!("! Failed to write to file {}: {}", path, e);
         } else {
-            println!("✓ Output successfully saved to {}", path);
+            println!("??Output successfully saved to {}", path);
         }
     } else {
         println!("{}", content);
@@ -1087,6 +1153,128 @@ pub fn print_complexitymap(details: &[UnifiedStats]) {
     }
 }
 
+pub fn generate_dashboard(stats: &HashMap<String, LangStats>, details: &[UnifiedStats]) -> String {
+    use serde_json::json;
+
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
+    sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
+
+    let labels: Vec<String> = sorted_stats.iter().map(|s| s.language.clone()).collect();
+    let data_lines: Vec<usize> = sorted_stats.iter().map(|s| s.lines).collect();
+    let data_files: Vec<usize> = sorted_stats.iter().map(|s| s.file_count).collect();
+
+    let chart_data_lines = json!(data_lines).to_string();
+    let chart_data_files = json!(data_files).to_string();
+    let chart_labels = json!(labels).to_string();
+
+    let mut top_complex_files: Vec<&UnifiedStats> = details.iter().collect();
+    top_complex_files.sort_by(|a, b| b.complexity.partial_cmp(&a.complexity).unwrap_or(std::cmp::Ordering::Equal));
+    let top_complex_files: Vec<&UnifiedStats> = top_complex_files.into_iter().take(10).collect();
+
+    let complex_labels: Vec<String> = top_complex_files.iter().map(|s| s.path.clone()).collect();
+    let complex_data: Vec<f64> = top_complex_files.iter().map(|s| s.complexity).collect();
+
+    let chart_complex_labels = json!(complex_labels).to_string();
+    let chart_complex_data = json!(complex_data).to_string();
+
+    let mut html = String::new();
+    html.push_str(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeState Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #1e1e1e; color: #fff; }
+        h1 { text-align: center; color: #61dafb; }
+        .container { display: flex; flex-wrap: wrap; justify-content: space-around; }
+        .card { background: #282c34; border-radius: 8px; padding: 20px; margin: 10px; width: 45%; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        canvas { max-width: 100%; }
+        @media (max-width: 800px) { .card { width: 100%; } }
+    </style>
+</head>
+<body>
+    <h1>?? CodeState Analysis Dashboard</h1>
+    <div class="container">
+        <div class="card">
+            <h2>Language Distribution (Lines)</h2>
+            <canvas id="linesChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>Language Distribution (Files)</h2>
+            <canvas id="filesChart"></canvas>
+        </div>
+        <div class="card" style="width: 92%;">
+            <h2>Top 10 Most Complex Files</h2>
+            <canvas id="complexityChart"></canvas>
+        </div>
+    </div>
+    <script>
+        const chartOptions = { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#fff' } } } };
+        
+        new Chart(document.getElementById('linesChart'), {
+            type: 'pie',
+            data: {
+                labels: "#);
+    html.push_str(&chart_labels);
+    html.push_str(r#",
+                datasets: [{
+                    data: "#);
+    html.push_str(&chart_data_lines);
+    html.push_str(r#",
+                    backgroundColor: ['#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2']
+                }]
+            },
+            options: chartOptions
+        });
+
+        new Chart(document.getElementById('filesChart'), {
+            type: 'doughnut',
+            data: {
+                labels: "#);
+    html.push_str(&chart_labels);
+    html.push_str(r#",
+                datasets: [{
+                    data: "#);
+    html.push_str(&chart_data_files);
+    html.push_str(r#",
+                    backgroundColor: ['#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2']
+                }]
+            },
+            options: chartOptions
+        });
+
+        new Chart(document.getElementById('complexityChart'), {
+            type: 'bar',
+            data: {
+                labels: "#);
+    html.push_str(&chart_complex_labels);
+    html.push_str(r#",
+                datasets: [{
+                    label: 'Cyclomatic Complexity',
+                    data: "#);
+    html.push_str(&chart_complex_data);
+    html.push_str(r#",
+                    backgroundColor: '#e06c75'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#fff' } },
+                    x: { ticks: { color: '#fff' } }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            }
+        });
+    </script>
+</body>
+</html>"#);
+    
+    html
+}
+
 pub fn generate_excel(stats: &HashMap<String, LangStats>, details: Option<&[UnifiedStats]>, output: Option<&String>) {
     let mut workbook = Workbook::new();
     let header_format = Format::new().set_bold().set_font_color(XlsxColor::White).set_background_color(XlsxColor::Blue);
@@ -1143,7 +1331,7 @@ pub fn generate_excel(stats: &HashMap<String, LangStats>, details: Option<&[Unif
     if let Err(e) = workbook.save(path) {
         eprintln!("! Failed to write Excel file {}: {}", path, e);
     } else {
-        println!("✓ Excel report successfully saved to {}", path);
+        println!("??Excel report successfully saved to {}", path);
     }
 }
 
@@ -1292,5 +1480,88 @@ pub fn generate_lang_card_svg(stats: &HashMap<String, LangStats>) -> String {
   <text x="20" y="80" font-family="Arial" font-size="16" fill="#abb2bf">Primary Lang: {}</text>
   <text x="20" y="110" font-family="Arial" font-size="16" fill="#abb2bf">Total Lines: {}</text>
 </svg>"##, primary_lang, total_lines)
+}
+
+pub fn generate_sarif(details: &[UnifiedStats]) -> String {
+    use serde_json::json;
+    
+    let mut results = Vec::new();
+    
+    for s in details {
+        if s.secrets_found > 0 {
+            results.push(json!({
+                "ruleId": "CS-001",
+                "level": "error",
+                "message": {
+                    "text": format!("Found {} potential secret(s) (e.g. API keys) in this file.", s.secrets_found)
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": s.path
+                        }
+                    }
+                }]
+            }));
+        }
+        
+        if s.complexity > 15.0 {
+            results.push(json!({
+                "ruleId": "CS-002",
+                "level": "warning",
+                "message": {
+                    "text": format!("High cyclomatic complexity ({:.1}). Consider refactoring.", s.complexity)
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": s.path
+                        }
+                    }
+                }]
+            }));
+        }
+    }
+    
+    let sarif = json!({
+        "version": "2.1.0",
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "CodeState",
+                        "informationUri": "https://github.com/HenryLok0/CodeState",
+                        "version": "4.0.0",
+                        "rules": [
+                            {
+                                "id": "CS-001",
+                                "name": "SecretScanning",
+                                "shortDescription": {
+                                    "text": "Potential hardcoded secret"
+                                },
+                                "defaultConfiguration": {
+                                    "level": "error"
+                                }
+                            },
+                            {
+                                "id": "CS-002",
+                                "name": "HighComplexity",
+                                "shortDescription": {
+                                    "text": "High Cyclomatic Complexity"
+                                },
+                                "defaultConfiguration": {
+                                    "level": "warning"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "results": results
+            }
+        ]
+    });
+    
+    serde_json::to_string_pretty(&sarif).unwrap_or_else(|_| "{}".to_string())
 }
 
