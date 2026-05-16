@@ -3,7 +3,9 @@ use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;
+use std::time::SystemTime;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FileStats {
     pub path: PathBuf,
     pub ext: String,
@@ -11,9 +13,25 @@ pub struct FileStats {
     pub blank_lines: usize,
     pub comment_lines: usize,
     pub code_lines: usize,
+    pub size_bytes: u64,
+    pub created_at: Option<SystemTime>,
+    pub modified_at: Option<SystemTime>,
 }
 
-pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&Vec<String>>) -> Vec<FileStats> {
+pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&Vec<String>>, use_cache: bool) -> Vec<FileStats> {
+    let cache_file = Path::new(".codestate/cache.json");
+    let mut cache: HashMap<PathBuf, FileStats> = HashMap::new();
+
+    if use_cache {
+        if let Ok(content) = fs::read_to_string(cache_file) {
+            if let Ok(cached_stats) = serde_json::from_str::<Vec<FileStats>>(&content) {
+                for stat in cached_stats {
+                    cache.insert(stat.path.clone(), stat);
+                }
+            }
+        }
+    }
+
     let mut builder = WalkBuilder::new(dir);
     builder.hidden(false).ignore(true).git_ignore(true);
 
@@ -44,10 +62,32 @@ pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&V
         })
         .collect();
 
-    paths
+    let stats: Vec<FileStats> = paths
         .into_par_iter()
-        .filter_map(|path| analyze_file(&path))
-        .collect()
+        .filter_map(|path| {
+            if use_cache {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    if let Ok(modified) = metadata.modified() {
+                        if let Some(cached) = cache.get(&path) {
+                            if cached.modified_at == Some(modified) {
+                                return Some(cached.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            analyze_file(&path)
+        })
+        .collect();
+
+    if use_cache {
+        if let Err(_) = fs::create_dir_all(".codestate") {}
+        if let Ok(json) = serde_json::to_string(&stats) {
+            let _ = fs::write(cache_file, json);
+        }
+    }
+
+    stats
 }
 
 fn analyze_file(path: &Path) -> Option<FileStats> {
@@ -133,6 +173,14 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
 
     let code_lines = lines - blank_lines - comment_lines;
 
+    let (size_bytes, created_at, modified_at) = fs::metadata(path).map(|m| {
+        (
+            m.len(),
+            m.created().ok(),
+            m.modified().ok()
+        )
+    }).unwrap_or((0, None, None));
+
     Some(FileStats {
         path: path.to_path_buf(),
         ext,
@@ -140,6 +188,9 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
         blank_lines,
         comment_lines,
         code_lines,
+        size_bytes,
+        created_at,
+        modified_at,
     })
 }
 

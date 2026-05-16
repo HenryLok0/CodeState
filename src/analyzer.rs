@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 
 static FUNC_REGEX: OnceLock<Regex> = OnceLock::new();
 static CLASS_REGEX: OnceLock<Regex> = OnceLock::new();
+static DOCSTRING_REGEX: OnceLock<Regex> = OnceLock::new();
+static TYPEHINT_REGEX: OnceLock<Regex> = OnceLock::new();
 
 pub struct AnalyzerStats {
     pub path: PathBuf,
@@ -18,6 +20,8 @@ pub struct AnalyzerStats {
     #[allow(dead_code)]
     pub naming_violations: usize,
     pub naming_violations_details: Vec<String>,
+    pub docstrings_count: usize,
+    pub typehints_count: usize,
 }
 
 // Simplified analyzer that scans concurrently using Aho-Corasick for extreme speed
@@ -120,6 +124,19 @@ fn analyze_file(path: &Path, ac: &AhoCorasick, check_naming: bool) -> Option<Ana
     
     let naming_violations = naming_violations_details.len();
 
+    let mut docstrings_count = 0;
+    let mut typehints_count = 0;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let is_rust_or_py = ext == "rs" || ext == "py";
+
+    if is_rust_or_py {
+        let doc_re = DOCSTRING_REGEX.get_or_init(|| Regex::new(r"(?m)^\s*(///|#|\x22\x22\x22)").unwrap());
+        let type_re = TYPEHINT_REGEX.get_or_init(|| Regex::new(r"(?m)(:\s*[a-zA-Z_]|->\s*[a-zA-Z_])").unwrap());
+        
+        docstrings_count = doc_re.find_iter(&content).count();
+        typehints_count = type_re.find_iter(&content).count();
+    }
+
     Some(AnalyzerStats {
         path: path.to_path_buf(),
         complexity,
@@ -127,6 +144,8 @@ fn analyze_file(path: &Path, ac: &AhoCorasick, check_naming: bool) -> Option<Ana
         functions_count,
         naming_violations,
         naming_violations_details,
+        docstrings_count,
+        typehints_count,
     })
 }
 
