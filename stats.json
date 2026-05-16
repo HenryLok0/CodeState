@@ -1,0 +1,114 @@
+[
+  {
+    "ext": ".bin",
+    "file_count": 2,
+    "lines": 7279,
+    "blank_lines": 9,
+    "comment_lines": 0,
+    "code_lines": 7270
+  },
+  {
+    "ext": ".lock",
+    "file_count": 1,
+    "lines": 1031,
+    "blank_lines": 112,
+    "comment_lines": 0,
+    "code_lines": 919
+  },
+  {
+    "ext": ".rs",
+    "file_count": 5,
+    "lines": 904,
+    "blank_lines": 159,
+    "comment_lines": 32,
+    "code_lines": 713
+  },
+  {
+    "ext": ".sample",
+    "file_count": 14,
+    "lines": 868,
+    "blank_lines": 116,
+    "comment_lines": 0,
+    "code_lines": 752
+  },
+  {
+    "ext": "",
+    "file_count": 156,
+    "lines": 805,
+    "blank_lines": 8,
+    "comment_lines": 0,
+    "code_lines": 797
+  },
+  {
+    "ext": ".pack",
+    "file_count": 1,
+    "lines": 636,
+    "blank_lines": 4,
+    "comment_lines": 0,
+    "code_lines": 632
+  },
+  {
+    "ext": ".md",
+    "file_count": 3,
+    "lines": 413,
+    "blank_lines": 123,
+    "comment_lines": 0,
+    "code_lines": 290
+  },
+  {
+    "ext": ".yml",
+    "file_count": 2,
+    "lines": 110,
+    "blank_lines": 13,
+    "comment_lines": 0,
+    "code_lines": 97
+  },
+  {
+    "ext": ".idx",
+    "file_count": 1,
+    "lines": 86,
+    "blank_lines": 1,
+    "comment_lines": 0,
+    "code_lines": 85
+  },
+  {
+    "ext": ".toml",
+    "file_count": 1,
+    "lines": 30,
+    "blank_lines": 2,
+    "comment_lines": 0,
+    "code_lines": 28
+  },
+  {
+    "ext": ".0",
+    "file_count": 9,
+    "lines": 9,
+    "blank_lines": 0,
+    "comment_lines": 0,
+    "code_lines": 9
+  },
+  {
+    "ext": ".rev",
+    "file_count": 1,
+    "lines": 4,
+    "blank_lines": 0,
+    "comment_lines": 0,
+    "code_lines": 4
+  },
+  {
+    "ext": ".in",
+    "file_count": 1,
+    "lines": 3,
+    "blank_lines": 0,
+    "comment_lines": 0,
+    "code_lines": 3
+  },
+  {
+    "ext": ".json",
+    "file_count": 1,
+    "lines": 1,
+    "blank_lines": 0,
+    "comment_lines": 0,
+    "code_lines": 1
+  }
+]
