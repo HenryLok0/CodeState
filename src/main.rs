@@ -2,10 +2,12 @@ mod scanner;
 mod analyzer;
 mod git;
 mod visualizer;
+mod search;
+mod advanced;
 
 use clap::Parser;
 use std::time::Instant;
-use anyhow::{Result, Context};
+use anyhow::Result;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -219,7 +221,20 @@ fn main() -> Result<()> {
     println!("CodeState initializing...");
     let start_time = Instant::now();
 
-    println!("Scanning directory: {}", args.directory);
+    let mut directories_to_scan = vec![args.directory.clone()];
+    if let Some(multi_dirs) = &args.multi {
+        if args.directory == "." {
+            // If default directory is used and --multi is provided, use multi dirs
+            directories_to_scan = multi_dirs.clone();
+        } else {
+            // Otherwise append multi dirs to the main directory
+            for dir in multi_dirs {
+                directories_to_scan.push(dir.clone());
+            }
+        }
+    }
+
+    println!("Scanning directories: {:?}", directories_to_scan);
     
     // 1. File Scanning (Parallel)
     let scan_start = Instant::now();
@@ -231,7 +246,28 @@ fn main() -> Result<()> {
         ext_filter = Some(only_lang.split(',').map(|s| s.trim().to_string()).collect());
     }
 
-    let file_stats = scanner::scan_directory(&args.directory, args.exclude.as_ref(), ext_filter.as_ref());
+    if args.tree || args.runall {
+        for dir in &directories_to_scan {
+            search::print_tree(dir);
+        }
+    }
+
+    if let Some(pattern) = &args.find {
+        for dir in &directories_to_scan {
+            search::find_pattern(dir, pattern, args.exclude.as_ref(), ext_filter.as_ref());
+        }
+    }
+
+    if args.dup || args.runall {
+        for dir in &directories_to_scan {
+            search::detect_duplicates(dir, args.exclude.as_ref(), ext_filter.as_ref());
+        }
+    }
+
+    let mut file_stats = Vec::new();
+    for dir in &directories_to_scan {
+        file_stats.extend(scanner::scan_directory(dir, args.exclude.as_ref(), ext_filter.as_ref()));
+    }
     let aggregated = scanner::aggregate_by_ext(&file_stats);
     let scan_elapsed = scan_start.elapsed();
     println!("✓ File scanning completed in {:?}", scan_elapsed);
@@ -239,27 +275,201 @@ fn main() -> Result<()> {
     // 2. Health Analysis (Parallel)
     let analysis_start = Instant::now();
     let paths: Vec<_> = file_stats.iter().map(|f| f.path.clone()).collect();
-    let _analysis_stats = analyzer::analyze_files(&paths);
+    let analysis_stats = analyzer::analyze_files(&paths, args.naming);
     let analysis_elapsed = analysis_start.elapsed();
     println!("✓ Complexity & Health analysis completed in {:?}", analysis_elapsed);
+    
+    if args.warnsize || args.runall {
+        println!("\n[--warnsize] Checking for large files...");
+        for stat in &file_stats {
+            if stat.lines > 300 {
+                println!("  Warning: Large file {:?} ({} lines)", stat.path, stat.lines);
+            }
+        }
+    }
+    
+    if args.naming || args.runall {
+        println!("\n[--naming] Checking naming conventions...");
+        for stat in &analysis_stats {
+            for violation in &stat.naming_violations_details {
+                println!("  {}", violation);
+            }
+        }
+    }
+    
+    if args.deadcode || args.runall {
+        println!("\n[--deadcode] Searching for potential dead code...");
+        let deadcode = analyzer::find_deadcode(&paths);
+        if deadcode.is_empty() {
+            println!("  No obvious dead code found (based on simple heuristic).");
+        } else {
+            for dc in deadcode {
+                println!("  Warning: Potential dead code detected: '{}'", dc);
+            }
+        }
+    }
 
-    // 3. Print Results
-    visualizer::print_summary_table(&aggregated);
+    if args.style_check || args.runall {
+        advanced::style_check(&paths);
+    }
+
+    if args.openapi || args.runall {
+        advanced::generate_openapi(&paths);
+    }
+
+    if let Some(coverage_file) = &args.test_coverage {
+        advanced::parse_test_coverage(coverage_file);
+    } else if args.runall {
+        // In runall, maybe try to parse a default if exists, or just skip
+        println!("\n[--test-coverage] Skipping because no coverage file provided.");
+    }
+
+    // 3. Prepare details if needed
+    let mut unified_stats = None;
+    if args.details || args.top.is_some() || args.failures_only || args.health || args.complexity_graph {
+        use std::collections::HashMap;
+        let mut complexity_map = HashMap::new();
+        for stat in &analysis_stats {
+            complexity_map.insert(stat.path.clone(), stat.complexity);
+        }
+
+        let mut u_stats = Vec::new();
+        for stat in &file_stats {
+            let complexity = complexity_map.get(&stat.path).cloned().unwrap_or(0.0);
+            u_stats.push(visualizer::UnifiedStats {
+                path: stat.path.to_string_lossy().to_string(),
+                ext: stat.ext.clone(),
+                lines: stat.lines,
+                code: stat.code_lines,
+                comments: stat.comment_lines,
+                blanks: stat.blank_lines,
+                complexity,
+            });
+        }
+        unified_stats = Some(u_stats);
+    }
+
+    if args.md {
+        let md = visualizer::generate_markdown(&aggregated, unified_stats.as_deref());
+        visualizer::save_or_print(&md, args.output.as_ref());
+    } else if args.html {
+        let html = visualizer::generate_html(&aggregated, unified_stats.as_deref());
+        visualizer::save_or_print(&html, args.output.as_ref());
+    } else if args.csv {
+        let csv = visualizer::generate_csv(&aggregated);
+        visualizer::save_or_print(&csv, args.output.as_ref());
+    } else if args.json {
+        let json = visualizer::generate_json(&aggregated);
+        visualizer::save_or_print(&json, args.output.as_ref());
+    } else {
+        // Normal text output
+        visualizer::print_summary_table(&aggregated);
+
+        if let Some(ref details) = unified_stats {
+            if args.details || args.top.is_some() || args.failures_only {
+                visualizer::print_details_table(details, args.top, args.failures_only);
+            }
+        }
+        
+        if args.health {
+            if let Some(ref details) = unified_stats {
+                visualizer::print_health_score(&aggregated, details);
+            }
+        }
+        
+        if args.complexity_graph {
+            if let Some(ref details) = unified_stats {
+                visualizer::print_complexity_graph(details);
+            }
+        }
+        
+        if args.langdist {
+            visualizer::print_langdist_chart(&aggregated);
+        }
+    }
+
+    if args.badges {
+        let badges = visualizer::generate_badges(&aggregated);
+        println!("\n=== Generated Badges ===\n{}", badges);
+    }
+
+    if args.readme {
+        let readme = visualizer::generate_readme_template(&aggregated);
+        println!("\n=== README Template ===");
+        visualizer::save_or_print(&readme, args.output.as_ref());
+    }
 
     // 4. Git Hotspots (Optional)
     if args.hotspot || args.runall {
         println!("\nAnalyzing Git history for hotspots...");
         let git_start = Instant::now();
-        match git::get_git_hotspots(&args.directory, 10) {
-            Ok(hotspots) => {
-                visualizer::print_git_hotspots(&hotspots);
-                let git_elapsed = git_start.elapsed();
-                println!("✓ Git analysis completed in {:?}", git_elapsed);
-            },
-            Err(e) => {
-                println!("! Could not perform Git analysis: {}", e);
+        for dir in &directories_to_scan {
+            println!("  Directory: {}", dir);
+            match git::get_git_hotspots(dir, 10) {
+                Ok(hotspots) => {
+                    visualizer::print_git_hotspots(&hotspots);
+                },
+                Err(e) => {
+                    println!("! Could not perform Git analysis: {}", e);
+                }
             }
         }
+        let git_elapsed = git_start.elapsed();
+        println!("✓ Git analysis completed in {:?}", git_elapsed);
+    }
+
+    if args.authors || args.runall {
+        println!("\nAnalyzing Git history for file authors...");
+        let git_start = Instant::now();
+        for dir in &directories_to_scan {
+            println!("  Directory: {}", dir);
+            match git::get_file_authors(dir) {
+                Ok(authors) => {
+                    visualizer::print_file_authors(&authors);
+                },
+                Err(e) => {
+                    println!("! Could not perform Author analysis: {}", e);
+                }
+            }
+        }
+        let git_elapsed = git_start.elapsed();
+        println!("✓ Author analysis completed in {:?}", git_elapsed);
+    }
+
+    if args.contributors || args.runall {
+        println!("\nAnalyzing Git history for contributor stats...");
+        let git_start = Instant::now();
+        for dir in &directories_to_scan {
+            println!("  Directory: {}", dir);
+            match git::get_contributor_stats(dir) {
+                Ok(stats) => {
+                    visualizer::print_contributor_stats(&stats);
+                },
+                Err(e) => {
+                    println!("! Could not perform Contributor analysis: {}", e);
+                }
+            }
+        }
+        let git_elapsed = git_start.elapsed();
+        println!("✓ Contributor analysis completed in {:?}", git_elapsed);
+    }
+
+    if args.churn || args.runall {
+        println!("\nAnalyzing Git history for recent file churn (30 days)...");
+        let git_start = Instant::now();
+        for dir in &directories_to_scan {
+            println!("  Directory: {}", dir);
+            match git::get_recent_churn(dir, 30, 20) {
+                Ok(churn) => {
+                    visualizer::print_recent_churn(&churn, 30);
+                },
+                Err(e) => {
+                    println!("! Could not perform Churn analysis: {}", e);
+                }
+            }
+        }
+        let git_elapsed = git_start.elapsed();
+        println!("✓ Churn analysis completed in {:?}", git_elapsed);
     }
 
     if args.runall {

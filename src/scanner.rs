@@ -163,7 +163,7 @@ pub fn aggregate_by_ext(stats: &[FileStats]) -> HashMap<String, ExtStats> {
     map
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExtStats {
     pub ext: String,
     pub file_count: usize,
