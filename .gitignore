@@ -1,5 +1,6 @@
 dist/
 target/
+.cursor/
 build/
 *.egg-info/
 __pycache__/
