@@ -10,11 +10,15 @@ Instant codebase insights in your terminal — fast, local, zero telemetry. Code
 ## Features
 
 - **Written in Rust:** Blazingly fast multi-threaded file scanning powered by `rayon` and `ignore`.
+- **Zero-Allocation Byte Scanner:** Near-instant execution times even on massive mono-repos.
+- **AST Semantic Analysis:** Integrates `tree-sitter` for perfectly accurate parsing of functions, classes, and dead code.
+- **Software Composition Analysis (SCA):** Instantly parse lockfiles to map your third-party dependencies.
+- **Enterprise Policy Engine:** Define project health constraints in a `.codestate.yml` to automatically guard your CI pipeline.
+- **Static Dashboard Generator:** One command to export a beautiful SPA dashboard with charts and health metrics.
 - **Zero-Install:** Download the standalone binary and run it instantly. No dependencies required!
-- **GitHub Action Ready:** Automate PR reviews and codebase health checks effortlessly.
-- **Beautiful TUI:** Gorgeous terminal UI with colors and styled tables powered by `comfy-table`.
-- Native Git Hotspot analysis via `git2-rs` for lighting fast history scans.
-- Detailed stats: files, LOC, comments, functions, complexity.
+- **GitHub Action Ready:** Export SARIF for GitHub Advanced Security and automate PR reviews.
+- **Beautiful TUI:** Gorgeous terminal UI with sorting, hotkey navigation, and live exploring (`codestate -i`).
+- Native Git Hotspot analysis via `git2-rs` for lighting fast Churn vs Complexity Matrix generation.
 
 ## Installation
 
@@ -81,7 +85,23 @@ codestate --summary
 CodeState integrates directly with Git to find "Hotspots"—files that are modified most frequently. Files with high complexity *and* high churn are prime candidates for bugs.
 
 ```bash
-codestate --hotspot
+codestate --hotspot --details
+```
+
+### 4. Interactive TUI Explorer
+
+Launch a full-screen Terminal User Interface to interactively navigate, sort, and analyze your project.
+
+```bash
+codestate -i
+```
+
+### 5. Generate Static HTML Dashboard
+
+Export a standalone, beautiful HTML dashboard with charts and complexity graphs for your team.
+
+```bash
+codestate --generate-dashboard --details
 ```
 
 ## GitHub Action (CI/CD)
@@ -162,6 +182,10 @@ CodeState's new Rust engine focuses on speed and simplicity.
 | `--test-coverage <coverage.xml>`     | Show test coverage analysis from a coverage.xml file                                                  |
 | `--output`, `-o`                     | Output file for HTML/Markdown/JSON/CSV/Excel export                                                   |
 | `--report-issues`                    | Export all detected issues (naming, size, complexity, etc.) as a markdown or JSON report              |
+| `--check-policy`                     | Validate project against `.codestate.yml` rules (CI mode)                                             |
+| `--generate-dashboard`               | Create a static HTML SPA dashboard (`output/dashboard.html`)                                          |
+| `--sarif`                            | Export SARIF format for GitHub Advanced Security integration                                          |
+| `--sca`                              | Perform Software Composition Analysis (SCA) on lockfiles                                              |
 | **[Project Structure & Health]**     |                                                                                                       |
 | `--tree`                             | Show ASCII tree view of project structure                                                             |
 | `--structure-mermaid`                | Generate a Mermaid diagram of the project directory structure                                         |
