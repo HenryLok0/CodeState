@@ -2,16 +2,32 @@ name: Release Rust Binaries
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  bump_version:
+    name: Bump Version and Tag
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
   build:
     name: Build on ${{ matrix.os }}
+    needs: bump_version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -47,7 +63,7 @@ jobs:
       run: cp target/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
 
     - name: Upload to Release
-      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ needs.bump_version.outputs.new_tag }}
         files: ${{ matrix.asset_name }}
