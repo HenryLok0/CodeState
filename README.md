@@ -3,9 +3,9 @@
 [MIT License](LICENSE)
 [Stars](https://github.com/HenryLok0/CodeState/stargazers)
 
-**Written in Rust. Blazingly fast.**
+**Blazingly fast.**
 
-Instant codebase insights in your terminal — fast, local, zero telemetry. CodeState 2.0 has been completely rewritten in Rust to provide extreme performance on par with `tokei` and `scc`, while keeping its unique advanced features like Git Hotspot analysis and Code Health tracking.
+Instant codebase insights in your terminal — fast, local, zero telemetry. CodeState provides extreme performance while keeping its unique advanced features like Git Hotspot analysis and Code Health tracking.
 
 ## Features
 
@@ -216,23 +216,6 @@ codestate --multi src tests
 codestate --list-extensions
 ```
 
-## Comparison
-
-
-| Feature                                | CodeState | cloc            | scc             | tokei           |
-| -------------------------------------- | --------- | --------------- | --------------- | --------------- |
-| Stats (files/lines/comments)           | Yes       | Yes             | Yes             | Yes             |
-| ASCII charts / heatmap in terminal     | Yes       | No              | No              | No              |
-| Report exports (HTML / Markdown / CSV) | Yes       | Limited         | Limited         | Limited         |
-| .gitignore awareness & caching         | Yes       | Manual excludes | Manual excludes | Manual excludes |
-| Hotspots / duplicates / naming checks  | Yes       | No              | No              | No              |
-
-
-Notes:
-
-- “Manual excludes” means the tool supports flags to ignore paths but doesn’t automatically read .gitignore or provide built-in caching like CodeState.
-- See Performance benchmarks below for speed guidance and how to reproduce measurements.
-
 ## Why CodeState?
 
 - Instant understanding: go beyond LOC to highlight duplicates, complexity hotspots, refactor candidates, naming issues, and dead code — right in your terminal.
@@ -270,7 +253,6 @@ Thank you to all contributors and the open-source community for your support.
 
 ## Troubleshooting
 
-- Command not found: try `python -m codestate.cli` instead of `codestate`.
 - Windows path/encoding quirks: run from a local folder (avoid syncing folders) and ensure UTF-8 console.
 - Very large repos: run once with `--cache`, then subsequent commands will be much faster.
 
