@@ -13,9 +13,17 @@ pub struct FileStats {
     pub code_lines: usize,
 }
 
-pub fn scan_directory(dir: &str, exts: Option<&Vec<String>>) -> Vec<FileStats> {
+pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&Vec<String>>) -> Vec<FileStats> {
     let mut builder = WalkBuilder::new(dir);
     builder.hidden(false).ignore(true).git_ignore(true);
+
+    if let Some(exc_list) = excludes {
+        let exc_list = exc_list.clone();
+        builder.filter_entry(move |e| {
+            let file_name = e.file_name().to_string_lossy();
+            !exc_list.iter().any(|exc| file_name == *exc)
+        });
+    }
 
     let walker = builder.build();
     let paths: Vec<PathBuf> = walker

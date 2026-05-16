@@ -57,6 +57,161 @@ struct Args {
     /// Run all commands to test functionality
     #[arg(long)]
     runall: bool,
+
+    // === Newly added flags to prevent panic ===
+
+    #[arg(long)]
+    ext: Option<Vec<String>>,
+
+    #[arg(long)]
+    only_lang: Option<String>,
+
+    #[arg(long)]
+    top: Option<usize>,
+
+    #[arg(long)]
+    regex: Option<Vec<String>>,
+
+    #[arg(long)]
+    file_age: bool,
+
+    #[arg(long)]
+    uncommitted: bool,
+
+    #[arg(long)]
+    size: bool,
+
+    #[arg(long)]
+    list_extensions: bool,
+
+    #[arg(long)]
+    min_lines: Option<usize>,
+
+    #[arg(long)]
+    find: Option<String>,
+
+    #[arg(long)]
+    cache_delete: bool,
+
+    #[arg(long)]
+    dup: bool,
+
+    #[arg(long)]
+    maxmin: bool,
+
+    #[arg(long)]
+    langdist: bool,
+
+    #[arg(long)]
+    complexitymap: bool,
+
+    #[arg(long)]
+    complexity_graph: bool,
+
+    #[arg(long)]
+    warnsize: bool,
+
+    #[arg(long)]
+    naming: bool,
+
+    #[arg(long)]
+    apidoc: bool,
+
+    #[arg(long)]
+    deadcode: bool,
+
+    #[arg(long)]
+    typestats: bool,
+
+    #[arg(long)]
+    trend: bool,
+
+    #[arg(long)]
+    refactor_suggest: bool,
+
+    #[arg(long)]
+    autofix_suggest: bool,
+
+    #[arg(long)]
+    refactor_map: bool,
+
+    #[arg(long)]
+    complexity_threshold: Option<f64>,
+
+    #[arg(long)]
+    open: Option<String>,
+
+    #[arg(long)]
+    blame: Option<String>,
+
+    #[arg(long)]
+    json: bool,
+
+    #[arg(long)]
+    csv: bool,
+
+    #[arg(long)]
+    excel: bool,
+
+    #[arg(long)]
+    details_csv: bool,
+
+    #[arg(long)]
+    groupdir_csv: bool,
+
+    #[arg(long)]
+    groupext_csv: bool,
+
+    #[arg(long)]
+    test_coverage: Option<String>,
+
+    #[arg(long)]
+    report_issues: bool,
+
+    #[arg(long)]
+    tree: bool,
+
+    #[arg(long)]
+    structure_mermaid: bool,
+
+    #[arg(long)]
+    health: bool,
+
+    #[arg(long)]
+    badge_sustainability: bool,
+
+    #[arg(long)]
+    lang_card_svg: bool,
+
+    #[arg(long)]
+    authors: bool,
+
+    #[arg(long)]
+    contributors: bool,
+
+    #[arg(long)]
+    contributors_detail: bool,
+
+    #[arg(long)]
+    churn: bool,
+
+    #[arg(long)]
+    ci: bool,
+
+    #[arg(long)]
+    badges: bool,
+
+    #[arg(long)]
+    readme: bool,
+
+    #[arg(long)]
+    style_check: bool,
+
+    #[arg(long)]
+    openapi: bool,
+
+    #[arg(long, num_args = 1..)]
+    multi: Option<Vec<String>>,
 }
 
 fn main() -> Result<()> {
@@ -68,7 +223,15 @@ fn main() -> Result<()> {
     
     // 1. File Scanning (Parallel)
     let scan_start = Instant::now();
-    let file_stats = scanner::scan_directory(&args.directory, None);
+    
+    let mut ext_filter: Option<Vec<String>> = None;
+    if let Some(exts) = &args.ext {
+        ext_filter = Some(exts.clone());
+    } else if let Some(only_lang) = &args.only_lang {
+        ext_filter = Some(only_lang.split(',').map(|s| s.trim().to_string()).collect());
+    }
+
+    let file_stats = scanner::scan_directory(&args.directory, args.exclude.as_ref(), ext_filter.as_ref());
     let aggregated = scanner::aggregate_by_ext(&file_stats);
     let scan_elapsed = scan_start.elapsed();
     println!("✓ File scanning completed in {:?}", scan_elapsed);
