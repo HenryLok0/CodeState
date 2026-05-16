@@ -8,7 +8,7 @@ use std::time::SystemTime;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FileStats {
     pub path: PathBuf,
-    pub ext: String,
+    pub language: String,
     pub lines: usize,
     pub blank_lines: usize,
     pub comment_lines: usize,
@@ -16,6 +16,102 @@ pub struct FileStats {
     pub size_bytes: u64,
     pub created_at: Option<SystemTime>,
     pub modified_at: Option<SystemTime>,
+}
+
+pub fn get_language_name(path: &Path) -> String {
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+    
+    // Check exact filenames first
+    match file_name.as_str() {
+        "makefile" | "gnumakefile" | "cmakelists.txt" => return "Makefile".to_string(),
+        "dockerfile" => return "Dockerfile".to_string(),
+        "docker-compose.yml" | "docker-compose.yaml" => return "Docker Compose".to_string(),
+        "license" | "license.txt" | "license.md" => return "License".to_string(),
+        "cargo.toml" => return "Cargo (Rust)".to_string(),
+        "cargo.lock" => return "Cargo Lock".to_string(),
+        "package.json" => return "NPM Package".to_string(),
+        "package-lock.json" => return "NPM Lock".to_string(),
+        "yarn.lock" => return "Yarn Lock".to_string(),
+        "gemfile" => return "Ruby Gemfile".to_string(),
+        "gemfile.lock" => return "Ruby Gemfile Lock".to_string(),
+        ".gitignore" | ".gitattributes" | ".gitmodules" => return "Git Config".to_string(),
+        "requirements.txt" => return "Python Requirements".to_string(),
+        _ => {}
+    }
+
+    // Check extensions
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        let ext_lower = ext.to_lowercase();
+        return match ext_lower.as_str() {
+            "rs" => "Rust",
+            "py" | "pyw" => "Python",
+            "js" | "mjs" | "cjs" => "JavaScript",
+            "ts" | "mts" | "cts" => "TypeScript",
+            "jsx" => "JavaScript JSX",
+            "tsx" => "TypeScript JSX",
+            "c" => "C",
+            "h" => "C Header",
+            "cpp" | "cxx" | "cc" => "C++",
+            "hpp" | "hxx" | "hh" => "C++ Header",
+            "cs" => "C#",
+            "java" => "Java",
+            "go" => "Go",
+            "rb" => "Ruby",
+            "php" => "PHP",
+            "swift" => "Swift",
+            "kt" | "kts" => "Kotlin",
+            "scala" => "Scala",
+            "html" | "htm" => "HTML",
+            "css" => "CSS",
+            "scss" => "SCSS",
+            "sass" => "Sass",
+            "less" => "Less",
+            "md" | "markdown" => "Markdown",
+            "json" => "JSON",
+            "xml" => "XML",
+            "yaml" | "yml" => "YAML",
+            "toml" => "TOML",
+            "sh" | "bash" | "zsh" | "bat" | "cmd" | "ps1" => "Shell",
+            "sql" => "SQL",
+            "vue" => "Vue",
+            "svelte" => "Svelte",
+            "dart" => "Dart",
+            "r" => "R",
+            "lua" => "Dart",
+            "pl" | "pm" | "t" => "Perl",
+            "txt" => "Text",
+            "ini" => "INI",
+            "cfg" | "conf" | "config" => "Config",
+            "csv" => "CSV",
+            "env" => "Dotenv",
+            _ => {
+                // Capitalize first letter of unknown extension
+                let mut chars = ext_lower.chars();
+                return match chars.next() {
+                    None => "Unknown".to_string(),
+                    Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                };
+            }
+        }.to_string();
+    }
+
+    // Check shebang
+    if let Ok(mut file) = fs::File::open(path) {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut buffer = [0; 64];
+        if file.read_exact(&mut buffer).is_ok() || file.seek(SeekFrom::Start(0)).is_ok() {
+            let content = String::from_utf8_lossy(&buffer);
+            if content.starts_with("#!") {
+                if content.contains("python") { return "Python".to_string(); }
+                if content.contains("node") { return "JavaScript".to_string(); }
+                if content.contains("sh") || content.contains("bash") || content.contains("zsh") { return "Shell".to_string(); }
+                if content.contains("ruby") { return "Ruby".to_string(); }
+                if content.contains("perl") { return "Perl".to_string(); }
+            }
+        }
+    }
+
+    "Unknown".to_string()
 }
 
 pub fn scan_directory(dir: &str, excludes: Option<&Vec<String>>, exts: Option<&Vec<String>>, use_cache: bool) -> Vec<FileStats> {
@@ -104,6 +200,7 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
         Err(_) => String::from_utf8_lossy(&fs::read(path).ok()?).into_owned(),
     };
     
+    let language = get_language_name(path);
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -188,7 +285,7 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
 
     Some(FileStats {
         path: path.to_path_buf(),
-        ext,
+        language,
         lines,
         blank_lines,
         comment_lines,
@@ -199,11 +296,11 @@ fn analyze_file(path: &Path) -> Option<FileStats> {
     })
 }
 
-pub fn aggregate_by_ext(stats: &[FileStats]) -> HashMap<String, ExtStats> {
-    let mut map: HashMap<String, ExtStats> = HashMap::new();
+pub fn aggregate_by_ext(stats: &[FileStats]) -> HashMap<String, LangStats> {
+    let mut map: HashMap<String, LangStats> = HashMap::new();
     for stat in stats {
-        let entry = map.entry(stat.ext.clone()).or_insert_with(|| ExtStats {
-            ext: stat.ext.clone(),
+        let entry = map.entry(stat.language.clone()).or_insert_with(|| LangStats {
+            language: stat.language.clone(),
             file_count: 0,
             lines: 0,
             blank_lines: 0,
@@ -220,8 +317,8 @@ pub fn aggregate_by_ext(stats: &[FileStats]) -> HashMap<String, ExtStats> {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ExtStats {
-    pub ext: String,
+pub struct LangStats {
+    pub language: String,
     pub file_count: usize,
     pub lines: usize,
     pub blank_lines: usize,

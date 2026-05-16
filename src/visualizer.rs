@@ -1,12 +1,12 @@
 use comfy_table::{Table, Cell, Color, Attribute, CellAlignment};
-use crate::scanner::ExtStats;
+use crate::scanner::LangStats;
 use std::collections::HashMap;
 use rust_xlsxwriter::{Workbook, Format, Color as XlsxColor};
 
 #[derive(serde::Serialize)]
 pub struct UnifiedStats {
     pub path: String,
-    pub ext: String,
+    pub language: String,
     pub lines: usize,
     pub code: usize,
     pub comments: usize,
@@ -19,10 +19,10 @@ pub struct UnifiedStats {
     pub modified_at: Option<std::time::SystemTime>,
 }
 
-pub fn print_compare_table(agg1: &HashMap<String, ExtStats>, agg2: &HashMap<String, ExtStats>) {
+pub fn print_compare_table(agg1: &HashMap<String, LangStats>, agg2: &HashMap<String, LangStats>) {
     let mut table = Table::new();
     table.set_header(vec![
-        Cell::new("Extension").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Language").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files (Dir 1)").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files (Dir 2)").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files Diff").add_attribute(Attribute::Bold).fg(Color::Cyan),
@@ -108,7 +108,7 @@ pub fn print_details_table(stats: &[UnifiedStats], top: Option<usize>, failures_
     let mut table = Table::new();
     let mut headers = vec![
         Cell::new("Path").add_attribute(Attribute::Bold).fg(Color::Cyan),
-        Cell::new("Extension").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Language").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Lines").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Code").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Comments").add_attribute(Attribute::Bold).fg(Color::Cyan),
@@ -143,7 +143,7 @@ pub fn print_details_table(stats: &[UnifiedStats], top: Option<usize>, failures_
     for s in filtered_stats {
         let mut row = vec![
             Cell::new(&s.path),
-            Cell::new(&s.ext).fg(Color::Green),
+            Cell::new(&s.language).fg(Color::Green),
             Cell::new(s.lines).set_alignment(CellAlignment::Right),
             Cell::new(s.code).set_alignment(CellAlignment::Right),
             Cell::new(s.comments).set_alignment(CellAlignment::Right),
@@ -185,17 +185,17 @@ pub fn print_details_table(stats: &[UnifiedStats], top: Option<usize>, failures_
     println!("\n{table}");
 }
 
-pub fn print_extensions_list(stats: &HashMap<String, ExtStats>) {
+pub fn print_extensions_list(stats: &HashMap<String, LangStats>) {
     let mut table = Table::new();
     table.set_header(vec![
-        Cell::new("Extension").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Language").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files %").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Lines").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Lines %").add_attribute(Attribute::Bold).fg(Color::Cyan),
     ]);
 
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
 
     let total_files: usize = sorted_stats.iter().map(|s| s.file_count).sum();
@@ -206,7 +206,7 @@ pub fn print_extensions_list(stats: &HashMap<String, ExtStats>) {
         let lines_pct = if total_lines > 0 { (s.lines as f64 / total_lines as f64) * 100.0 } else { 0.0 };
         
         table.add_row(vec![
-            Cell::new(&s.ext).fg(Color::Green),
+            Cell::new(&s.language).fg(Color::Green),
             Cell::new(s.file_count).set_alignment(CellAlignment::Right),
             Cell::new(format!("{:.1}%", files_pct)).set_alignment(CellAlignment::Right),
             Cell::new(s.lines).set_alignment(CellAlignment::Right),
@@ -217,10 +217,10 @@ pub fn print_extensions_list(stats: &HashMap<String, ExtStats>) {
     println!("\n{table}");
 }
 
-pub fn print_summary_table(stats: &HashMap<String, ExtStats>) {
+pub fn print_summary_table(stats: &HashMap<String, LangStats>, sort_by: Option<&String>) {
     let mut table = Table::new();
     table.set_header(vec![
-        Cell::new("Extension").add_attribute(Attribute::Bold).fg(Color::Cyan),
+        Cell::new("Language").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Files").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Lines").add_attribute(Attribute::Bold).fg(Color::Cyan),
         Cell::new("Code").add_attribute(Attribute::Bold).fg(Color::Cyan),
@@ -228,8 +228,22 @@ pub fn print_summary_table(stats: &HashMap<String, ExtStats>) {
         Cell::new("Blanks").add_attribute(Attribute::Bold).fg(Color::Cyan),
     ]);
 
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
-    sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
+    
+    // Sort logic
+    if let Some(sort_col) = sort_by {
+        match sort_col.to_lowercase().as_str() {
+            "files" => sorted_stats.sort_by(|a, b| b.file_count.cmp(&a.file_count)),
+            "lines" => sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines)),
+            "code" => sorted_stats.sort_by(|a, b| b.code_lines.cmp(&a.code_lines)),
+            "comments" => sorted_stats.sort_by(|a, b| b.comment_lines.cmp(&a.comment_lines)),
+            "blanks" => sorted_stats.sort_by(|a, b| b.blank_lines.cmp(&a.blank_lines)),
+            "language" => sorted_stats.sort_by(|a, b| a.language.cmp(&b.language)),
+            _ => sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines)),
+        }
+    } else {
+        sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
+    }
 
     let mut total_files = 0;
     let mut total_lines = 0;
@@ -239,7 +253,7 @@ pub fn print_summary_table(stats: &HashMap<String, ExtStats>) {
 
     for s in sorted_stats {
         table.add_row(vec![
-            Cell::new(&s.ext).fg(Color::Green),
+            Cell::new(&s.language).fg(Color::Green),
             Cell::new(s.file_count).set_alignment(CellAlignment::Right),
             Cell::new(s.lines).set_alignment(CellAlignment::Right),
             Cell::new(s.code_lines).set_alignment(CellAlignment::Right),
@@ -263,6 +277,25 @@ pub fn print_summary_table(stats: &HashMap<String, ExtStats>) {
     ]);
 
     println!("\n{table}");
+
+    // COCOMO Estimation (Basic Model)
+    // Based on typical parameters:
+    // Effort (person-months) = 3.2 * (KLOC)^1.05
+    // Schedule (months) = 2.5 * (Effort)^0.38
+    // Cost = Effort * Average Monthly Salary (e.g. $8,000)
+    if total_code > 0 {
+        let kloc = total_code as f64 / 1000.0;
+        let effort = 3.2 * kloc.powf(1.05);
+        let time = 2.5 * effort.powf(0.38);
+        let persons = if time > 0.0 { effort / time } else { 0.0 };
+        let cost = effort * 8000.0; // Assuming $8000/month average salary
+
+        println!("\n=== COCOMO Model Estimation ===");
+        println!("Estimated Effort:     {:.1} person-months", effort);
+        println!("Estimated Schedule:   {:.1} months", time);
+        println!("Estimated Developers: {:.1}", persons);
+        println!("Estimated Cost:       ${:.0}", cost);
+    }
 }
 
 pub fn print_git_hotspots(hotspots: &[crate::git::Hotspot]) {
@@ -412,13 +445,13 @@ pub fn print_recent_churn(hotspots: &[crate::git::Hotspot], days: u64) {
     }
 }
 
-pub fn generate_markdown(stats: &HashMap<String, ExtStats>, details: Option<&[UnifiedStats]>) -> String {
+pub fn generate_markdown(stats: &HashMap<String, LangStats>, details: Option<&[UnifiedStats]>) -> String {
     let mut md = String::new();
     md.push_str("## Summary Statistics\n\n");
     md.push_str("| Extension | Files | Lines | Code | Comments | Blanks |\n");
     md.push_str("|-----------|-------|-------|------|----------|--------|\n");
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
 
     let mut total_files = 0;
@@ -429,7 +462,7 @@ pub fn generate_markdown(stats: &HashMap<String, ExtStats>, details: Option<&[Un
 
     for s in sorted_stats {
         md.push_str(&format!("| {} | {} | {} | {} | {} | {} |\n",
-            s.ext, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
+            s.language, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
         total_files += s.file_count;
         total_lines += s.lines;
         total_code += s.code_lines;
@@ -445,20 +478,20 @@ pub fn generate_markdown(stats: &HashMap<String, ExtStats>, details: Option<&[Un
         md.push_str("|------|-----------|-------|------|----------|--------|------------|\n");
         for s in details {
             md.push_str(&format!("| {} | {} | {} | {} | {} | {} | {:.1} |\n",
-                s.path, s.ext, s.lines, s.code, s.comments, s.blanks, s.complexity));
+                s.path, s.language, s.lines, s.code, s.comments, s.blanks, s.complexity));
         }
     }
 
     md
 }
 
-pub fn generate_html(stats: &HashMap<String, ExtStats>, details: Option<&[UnifiedStats]>) -> String {
+pub fn generate_html(stats: &HashMap<String, LangStats>, details: Option<&[UnifiedStats]>) -> String {
     let mut html = String::new();
     html.push_str("<h2>Summary Statistics</h2>\n");
     html.push_str("<table border=\"1\">\n");
     html.push_str("<tr><th>Extension</th><th>Files</th><th>Lines</th><th>Code</th><th>Comments</th><th>Blanks</th></tr>\n");
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
 
     let mut total_files = 0;
@@ -469,7 +502,7 @@ pub fn generate_html(stats: &HashMap<String, ExtStats>, details: Option<&[Unifie
 
     for s in sorted_stats {
         html.push_str(&format!("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-            s.ext, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
+            s.language, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
         total_files += s.file_count;
         total_lines += s.lines;
         total_code += s.code_lines;
@@ -486,7 +519,7 @@ pub fn generate_html(stats: &HashMap<String, ExtStats>, details: Option<&[Unifie
         html.push_str("<tr><th>Path</th><th>Extension</th><th>Lines</th><th>Code</th><th>Comments</th><th>Blanks</th><th>Complexity</th></tr>\n");
         for s in details {
             html.push_str(&format!("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{:.1}</td></tr>\n",
-                s.path, s.ext, s.lines, s.code, s.comments, s.blanks, s.complexity));
+                s.path, s.language, s.lines, s.code, s.comments, s.blanks, s.complexity));
         }
         html.push_str("</table>\n");
     }
@@ -494,22 +527,22 @@ pub fn generate_html(stats: &HashMap<String, ExtStats>, details: Option<&[Unifie
     html
 }
 
-pub fn generate_csv(stats: &HashMap<String, ExtStats>) -> String {
+pub fn generate_csv(stats: &HashMap<String, LangStats>) -> String {
     let mut csv = String::new();
     csv.push_str("Extension,Files,Lines,Code,Comments,Blanks\n");
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
 
     for s in sorted_stats {
         csv.push_str(&format!("{},{},{},{},{},{}\n",
-            s.ext, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
+            s.language, s.file_count, s.lines, s.code_lines, s.comment_lines, s.blank_lines));
     }
     csv
 }
 
-pub fn generate_json(stats: &HashMap<String, ExtStats>) -> String {
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+pub fn generate_json(stats: &HashMap<String, LangStats>) -> String {
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
     serde_json::to_string_pretty(&sorted_stats).unwrap_or_else(|_| "[]".to_string())
 }
@@ -526,7 +559,7 @@ pub fn save_or_print(content: &str, output: Option<&String>) {
     }
 }
 
-pub fn print_health_score(stats: &HashMap<String, ExtStats>, details: &[UnifiedStats]) {
+pub fn print_health_score(stats: &HashMap<String, LangStats>, details: &[UnifiedStats]) {
     let mut total_lines = 0;
     let mut total_comments = 0;
     let mut total_blanks = 0;
@@ -634,13 +667,13 @@ pub fn print_complexity_graph(details: &[UnifiedStats]) {
     }
 }
 
-pub fn print_langdist_chart(stats: &HashMap<String, ExtStats>) {
+pub fn print_langdist_chart(stats: &HashMap<String, LangStats>) {
     if stats.is_empty() {
         println!("\nNo data for language distribution.");
         return;
     }
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
     
     let total_lines: usize = sorted_stats.iter().map(|s| s.lines).sum();
@@ -653,7 +686,7 @@ pub fn print_langdist_chart(stats: &HashMap<String, ExtStats>) {
     }
     
     let max_bar_len = 40;
-    let max_ext_len = sorted_stats.iter().map(|s| s.ext.len()).max().unwrap_or(5).max(5);
+    let max_ext_len = sorted_stats.iter().map(|s| s.language.len()).max().unwrap_or(5).max(5);
     
     for s in sorted_stats {
         let percentage = (s.lines as f64 / total_lines as f64) * 100.0;
@@ -665,7 +698,7 @@ pub fn print_langdist_chart(stats: &HashMap<String, ExtStats>) {
         let bar = "\u{2588}".repeat(bar_len);
         
         println!("{:<width$} | {:<bar_width$} | {:>5.1}% ({})", 
-            s.ext, 
+            s.language, 
             bar, 
             percentage, 
             s.lines,
@@ -675,32 +708,32 @@ pub fn print_langdist_chart(stats: &HashMap<String, ExtStats>) {
     }
 }
 
-pub fn generate_badges(stats: &HashMap<String, ExtStats>) -> String {
+pub fn generate_badges(stats: &HashMap<String, LangStats>) -> String {
     let mut badges = String::new();
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
 
-    let top_langs: Vec<&ExtStats> = sorted_stats.into_iter()
-        .filter(|s| !s.ext.trim().is_empty())
+    let top_langs: Vec<&LangStats> = sorted_stats.into_iter()
+        .filter(|s| !s.language.trim().is_empty())
         .take(5)
         .collect();
     for stat in top_langs {
-        let lang = stat.ext.replace(" ", "%20").replace("-", "--");
-        badges.push_str(&format!("![{ext}](https://img.shields.io/badge/Language-{lang}-blue) ", ext = stat.ext, lang = lang));
+        let lang = stat.language.replace(" ", "%20").replace("-", "--");
+        badges.push_str(&format!("![{ext}](https://img.shields.io/badge/Language-{lang}-blue) ", ext = stat.language, lang = lang));
     }
     badges.push('\n');
     badges
 }
 
-pub fn generate_readme_template(stats: &HashMap<String, ExtStats>) -> String {
+pub fn generate_readme_template(stats: &HashMap<String, LangStats>) -> String {
     let mut readme = String::new();
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
     
     let primary_lang = sorted_stats.iter()
-        .find(|s| !s.ext.trim().is_empty())
-        .map_or("Unknown", |s| s.ext.as_str());
+        .find(|s| !s.language.trim().is_empty())
+        .map_or("Unknown", |s| s.language.as_str());
     
     let total_lines: usize = stats.values().map(|s| s.lines).sum();
     let total_files: usize = stats.values().map(|s| s.file_count).sum();
@@ -893,7 +926,7 @@ pub fn print_autofix_suggest(analysis_stats: &[crate::analyzer::AnalyzerStats]) 
     }
 }
 
-pub fn print_open(path: &str, stats: Option<&ExtStats>, detail: Option<&UnifiedStats>, analysis: Option<&crate::analyzer::AnalyzerStats>) {
+pub fn print_open(path: &str, stats: Option<&LangStats>, detail: Option<&UnifiedStats>, analysis: Option<&crate::analyzer::AnalyzerStats>) {
     println!("\n=== File Analysis: {} ===", path);
     if let Some(s) = detail {
         println!("Lines: {}", s.lines);
@@ -902,7 +935,7 @@ pub fn print_open(path: &str, stats: Option<&ExtStats>, detail: Option<&UnifiedS
         println!("Blanks: {}", s.blanks);
         println!("Size (Bytes): {}", s.size_bytes);
         if let Some(ext) = stats {
-            println!("Language Extension: {}", ext.ext);
+            println!("Language: {}", ext.language);
         }
     } else {
         println!("File basic stats not found.");
@@ -1054,25 +1087,25 @@ pub fn print_complexitymap(details: &[UnifiedStats]) {
     }
 }
 
-pub fn generate_excel(stats: &HashMap<String, ExtStats>, details: Option<&[UnifiedStats]>, output: Option<&String>) {
+pub fn generate_excel(stats: &HashMap<String, LangStats>, details: Option<&[UnifiedStats]>, output: Option<&String>) {
     let mut workbook = Workbook::new();
     let header_format = Format::new().set_bold().set_font_color(XlsxColor::White).set_background_color(XlsxColor::Blue);
     
     // Summary Sheet
     let sheet = workbook.add_worksheet().set_name("Summary").unwrap();
-    sheet.write_string_with_format(0, 0, "Extension", &header_format).unwrap();
+    sheet.write_string_with_format(0, 0, "Language", &header_format).unwrap();
     sheet.write_string_with_format(0, 1, "Files", &header_format).unwrap();
     sheet.write_string_with_format(0, 2, "Lines", &header_format).unwrap();
     sheet.write_string_with_format(0, 3, "Code", &header_format).unwrap();
     sheet.write_string_with_format(0, 4, "Comments", &header_format).unwrap();
     sheet.write_string_with_format(0, 5, "Blanks", &header_format).unwrap();
     
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
     
     for (row, s) in sorted_stats.iter().enumerate() {
         let r = (row + 1) as u32;
-        sheet.write_string(r, 0, &s.ext).unwrap();
+        sheet.write_string(r, 0, &s.language).unwrap();
         sheet.write_number(r, 1, s.file_count as f64).unwrap();
         sheet.write_number(r, 2, s.lines as f64).unwrap();
         sheet.write_number(r, 3, s.code_lines as f64).unwrap();
@@ -1084,7 +1117,7 @@ pub fn generate_excel(stats: &HashMap<String, ExtStats>, details: Option<&[Unifi
     if let Some(details) = details {
         let sheet = workbook.add_worksheet().set_name("Details").unwrap();
         sheet.write_string_with_format(0, 0, "Path", &header_format).unwrap();
-        sheet.write_string_with_format(0, 1, "Extension", &header_format).unwrap();
+        sheet.write_string_with_format(0, 1, "Language", &header_format).unwrap();
         sheet.write_string_with_format(0, 2, "Lines", &header_format).unwrap();
         sheet.write_string_with_format(0, 3, "Code", &header_format).unwrap();
         sheet.write_string_with_format(0, 4, "Comments", &header_format).unwrap();
@@ -1094,7 +1127,7 @@ pub fn generate_excel(stats: &HashMap<String, ExtStats>, details: Option<&[Unifi
         for (row, s) in details.iter().enumerate() {
             let r = (row + 1) as u32;
             sheet.write_string(r, 0, &s.path).unwrap();
-            sheet.write_string(r, 1, &s.ext).unwrap();
+            sheet.write_string(r, 1, &s.language).unwrap();
             sheet.write_number(r, 2, s.lines as f64).unwrap();
             sheet.write_number(r, 3, s.code as f64).unwrap();
             sheet.write_number(r, 4, s.comments as f64).unwrap();
@@ -1119,7 +1152,7 @@ pub fn generate_details_csv(details: &[UnifiedStats]) -> String {
     csv.push_str("Path,Extension,Lines,Code,Comments,Blanks,Complexity\n");
     for s in details {
         csv.push_str(&format!("{},{},{},{},{},{},{:.1}\n",
-            s.path.replace(",", ";"), s.ext, s.lines, s.code, s.comments, s.blanks, s.complexity));
+            s.path.replace(",", ";"), s.language, s.lines, s.code, s.comments, s.blanks, s.complexity));
     }
     csv
 }
@@ -1243,13 +1276,13 @@ pub fn generate_badge_sustainability(details: &[UnifiedStats]) -> String {
 </svg>"##, color_hex = color_hex, score = avg_complexity)
 }
 
-pub fn generate_lang_card_svg(stats: &HashMap<String, ExtStats>) -> String {
-    let mut sorted_stats: Vec<&ExtStats> = stats.values().collect();
+pub fn generate_lang_card_svg(stats: &HashMap<String, LangStats>) -> String {
+    let mut sorted_stats: Vec<&LangStats> = stats.values().collect();
     sorted_stats.sort_by(|a, b| b.lines.cmp(&a.lines));
     
     let primary_lang = sorted_stats.iter()
-        .find(|s| !s.ext.trim().is_empty())
-        .map_or("Unknown", |s| s.ext.as_str());
+        .find(|s| !s.language.trim().is_empty())
+        .map_or("Unknown", |s| s.language.as_str());
         
     let total_lines: usize = stats.values().map(|s| s.lines).sum();
     

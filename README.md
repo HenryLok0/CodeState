@@ -116,7 +116,7 @@ CodeState's new Rust engine focuses on speed and simplicity.
 | `--file-age`                         | Show file creation and last modified time                                                             |
 | `--uncommitted`                      | Show stats for files with uncommitted changes (git diff)                                              |
 | `--size`                             | Show each file's size in bytes as a table                                                             |
-| `--list-extensions`                  | List all file extensions found in the project with count and percentage                               |
+| `--list-extensions`                  | List all languages found in the project with count and percentage                               |
 | `--min-lines <N>`                    | Only show files with total lines >= N                                                                 |
 | `--find <keyword/regex>`             | Find all lines matching a keyword or regex in the codebase                                            |
 | `--cache`                            | Build and use cache for much faster repeated analysis (highly recommended for large codebases)        |
@@ -142,6 +142,7 @@ CodeState's new Rust engine focuses on speed and simplicity.
 | `--blame <file>`                     | Show git blame statistics for a file                                                                  |
 | `--compare <dir1> <dir2>`            | Compare statistics between two directories                                                            |
 | **[Output / Reports]**               |                                                                                                       |
+| `--sort <COLUMN>`                    | Sort output table by files, lines, code, comments, blanks, language                                   |
 | `--html`                             | Export result as HTML table                                                                           |
 | `--md`                               | Export result as Markdown table                                                                       |
 | `--json`                             | Export result as JSON                                                                                 |
@@ -163,7 +164,7 @@ CodeState's new Rust engine focuses on speed and simplicity.
 | **[Contributors / CI]**              |                                                                                                       |
 | `--authors`                          | Show git main author and last modifier for each file                                                  |
 | `--contributors`                     | Show contributor statistics (file count, line count, commit count per author)                         |
-| `--contributors-detail`              | Show detailed contributor statistics                                                                  |
+| `--contributors-detail`              | Show detailed contributor statistics (including Impact %)                                             |
 | `--hotspot`                          | Show most frequently changed files (git hotspots)                                                     |
 | `--churn`                            | Show most changed files in the last N days (default 30)                                               |
 | `--ci`                               | CI/CD mode: exit non-zero if major issues found                                                       |
@@ -218,6 +219,9 @@ codestate --complexity-threshold 5 --failures-only
 
 # Analyze multiple directories (requires at least one directory)
 codestate --multi src tests
+
+# Sort summary table by specific column (files, lines, code, comments, blanks, language)
+codestate --sort code
 
 # List all file extensions with count and percentage
 codestate --list-extensions

@@ -214,6 +214,10 @@ struct Args {
 
     #[arg(long, num_args = 1..)]
     multi: Option<Vec<String>>,
+
+    /// Sort by a specific column (e.g., files, lines, code, comments, blanks, language)
+    #[arg(long)]
+    sort: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -434,7 +438,7 @@ fn main() -> Result<()> {
             let complexity = complexity_map.get(&stat.path).cloned().unwrap_or(0.0);
             u_stats.push(visualizer::UnifiedStats {
                 path: stat.path.to_string_lossy().to_string(),
-                ext: stat.ext.clone(),
+                language: stat.language.clone(),
                 lines: stat.lines,
                 code: stat.code_lines,
                 comments: stat.comment_lines,
@@ -501,7 +505,7 @@ fn main() -> Result<()> {
     } else {
         // Normal text output
         if !has_specific_view || args.summary {
-            visualizer::print_summary_table(&aggregated);
+            visualizer::print_summary_table(&aggregated, args.sort.as_ref());
         }
 
         if let Some(ref details) = unified_stats {
@@ -552,7 +556,7 @@ fn main() -> Result<()> {
         
         if let Some(path) = &args.open {
             let detail = unified_stats.as_ref().and_then(|u| u.iter().find(|s| s.path == *path));
-            let ext_stat = detail.and_then(|d| aggregated.get(&d.ext));
+            let ext_stat = detail.and_then(|d| aggregated.get(&d.language));
             let an_stat = analysis_stats.iter().find(|s| s.path.to_str() == Some(path));
             visualizer::print_open(path, ext_stat, detail, an_stat);
         }
@@ -864,7 +868,8 @@ fn run_all_tests() -> Result<()> {
         ("readme", vec!["--readme"]),
         ("style-check", vec!["--style-check"]),
         ("openapi", vec!["--openapi"]),
-        ("multi", vec!["--multi", "src", "."])
+        ("multi", vec!["--multi", "src", "."]),
+        ("sort", vec!["--sort", "lines"])
     ];
 
     let _ = std::fs::create_dir_all("output");
