@@ -30,7 +30,7 @@ runs:
         echo "Running: codestate ${{ inputs.args }}"
         codestate ${{ inputs.args }} > codestate_report.md
         cat codestate_report.md
-        echo "## 📊 CodeState Report" >> $GITHUB_STEP_SUMMARY
+        echo "## CodeState Report" >> $GITHUB_STEP_SUMMARY
         cat codestate_report.md >> $GITHUB_STEP_SUMMARY
 
     - name: Comment PR
@@ -53,5 +53,5 @@ runs:
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## 📊 CodeState Analysis Report\n\n<details><summary>Click to view details</summary>\n\n${report}\n\n</details>`
+            body: `## CodeState Analysis Report\n\n<details><summary>Click to view details</summary>\n\n${report}\n\n</details>`
           });
