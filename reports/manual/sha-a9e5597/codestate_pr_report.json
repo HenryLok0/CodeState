@@ -1,0 +1,40 @@
+{
+  "base": "5937ded81985d2ab52c22fc9c820a592f9ae68b2",
+  "head": "a9e5597b12c62a817feaf9119db340e06359998c",
+  "file_count": 3,
+  "by_ext": [
+    {
+      "ext": ".py",
+      "file_count": 3,
+      "total_lines": 2078,
+      "comment_lines": 121,
+      "function_count": 38
+    }
+  ],
+  "per_file": [
+    {
+      "file": "codestate/cli.py",
+      "ext": ".py",
+      "total_lines": 1433,
+      "comment_lines": 77,
+      "function_count": 16,
+      "complexity": 482.0
+    },
+    {
+      "file": "codestate/visualizer.py",
+      "ext": ".py",
+      "total_lines": 606,
+      "comment_lines": 44,
+      "function_count": 22,
+      "complexity": 173.0
+    },
+    {
+      "file": "setup.py",
+      "ext": ".py",
+      "total_lines": 39,
+      "comment_lines": 0,
+      "function_count": 0,
+      "complexity": 3.0
+    }
+  ]
+}
