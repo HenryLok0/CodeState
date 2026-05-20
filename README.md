@@ -296,4 +296,3 @@ Thank you to all contributors and the open-source community for your support.
 
 - Windows path/encoding quirks: run from a local folder (avoid syncing folders) and ensure UTF-8 console.
 - Very large repos: run once with `--cache`, then subsequent commands will be much faster.
-
